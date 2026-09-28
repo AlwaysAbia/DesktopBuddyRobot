@@ -35,6 +35,11 @@ const char* NVS_NAMESPACE = "ota";
 const char* KEY_PENDING   = "pending";  // version we just flashed, cleared on next boot
 const char* KEY_BAD       = "bad";      // version that failed to boot (rolled back)
 
+// Preferences::getString() logs an error for a missing key; check first.
+String readKey(Preferences& prefs, const char* key) {
+  return prefs.isKey(key) ? prefs.getString(key, "") : String();
+}
+
 struct Manifest {
   String version;
   String url;
@@ -211,7 +216,7 @@ void confirmRunningFirmware() {
   // Did the last pull OTA we started actually end up running?
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, false);
-  String pending = prefs.getString(KEY_PENDING, "");
+  String pending = readKey(prefs, KEY_PENDING);
   if (!pending.isEmpty()) {
     if (pending == FIRMWARE_VERSION) {
       Serial.printf("[OTA] Update to %s succeeded\n", pending.c_str());
@@ -247,7 +252,7 @@ void checkAndUpdate(bool force) {
 
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, false);
-  String bad = prefs.getString(KEY_BAD, "");
+  String bad = readKey(prefs, KEY_BAD);
 
   if (!force) {
     if (compareVersions(offered, current) <= 0) {
@@ -284,7 +289,7 @@ void printStatus() {
 
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, true);
-  String bad = prefs.getString(KEY_BAD, "");
+  String bad = readKey(prefs, KEY_BAD);
   prefs.end();
 
   Serial.println("---------- OTA status ----------");
