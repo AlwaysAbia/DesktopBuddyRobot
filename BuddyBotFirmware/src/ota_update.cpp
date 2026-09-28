@@ -100,7 +100,7 @@ bool fetchManifest(Manifest& manifest) {
   NetworkClientSecure secure;
   HTTPClient http;
 
-  Serial.printf("[OTA] Fetching manifest: %s\n", OTA_MANIFEST_URL);
+  Serial.printf("[OTA] Fetching manifest: %s\r\n", OTA_MANIFEST_URL);
   if (!httpBegin(http, plain, secure, OTA_MANIFEST_URL)) {
     Serial.println("[OTA] Invalid manifest URL");
     return false;
@@ -108,7 +108,7 @@ bool fetchManifest(Manifest& manifest) {
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    Serial.printf("[OTA] Manifest request failed: %d (%s)\n", code, http.errorToString(code).c_str());
+    Serial.printf("[OTA] Manifest request failed: %d (%s)\r\n", code, http.errorToString(code).c_str());
     http.end();
     return false;
   }
@@ -118,7 +118,7 @@ bool fetchManifest(Manifest& manifest) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, body);
   if (err) {
-    Serial.printf("[OTA] Manifest is not valid JSON: %s\n", err.c_str());
+    Serial.printf("[OTA] Manifest is not valid JSON: %s\r\n", err.c_str());
     return false;
   }
 
@@ -140,7 +140,7 @@ bool downloadAndFlash(const Manifest& manifest) {
   // HTTP/1.0 = no chunked transfer encoding, so the stream is the raw binary.
   http.useHTTP10(true);
 
-  Serial.printf("[OTA] Downloading: %s\n", manifest.url.c_str());
+  Serial.printf("[OTA] Downloading: %s\r\n", manifest.url.c_str());
   if (!httpBegin(http, plain, secure, manifest.url)) {
     Serial.println("[OTA] Invalid firmware URL");
     return false;
@@ -148,7 +148,7 @@ bool downloadAndFlash(const Manifest& manifest) {
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    Serial.printf("[OTA] Firmware request failed: %d (%s)\n", code, http.errorToString(code).c_str());
+    Serial.printf("[OTA] Firmware request failed: %d (%s)\r\n", code, http.errorToString(code).c_str());
     http.end();
     return false;
   }
@@ -156,7 +156,7 @@ bool downloadAndFlash(const Manifest& manifest) {
   int length = http.getSize();
   bool sizeKnown = length > 0;
   if (!Update.begin(sizeKnown ? (size_t)length : UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-    Serial.printf("[OTA] Update.begin failed: %s\n", Update.errorString());
+    Serial.printf("[OTA] Update.begin failed: %s\r\n", Update.errorString());
     http.end();
     return false;
   }
@@ -173,18 +173,18 @@ bool downloadAndFlash(const Manifest& manifest) {
     int decile = (int)(done * 10 / total);
     if (decile != lastDecile) {
       lastDecile = decile;
-      Serial.printf("[OTA] Progress: %d%%\n", decile * 10);
+      Serial.printf("[OTA] Progress: %d%%\r\n", decile * 10);
     }
   });
 
   size_t written = Update.writeStream(*http.getStreamPtr());
   http.end();
-  Serial.printf("[OTA] Wrote %u bytes\n", (unsigned)written);
+  Serial.printf("[OTA] Wrote %u bytes\r\n", (unsigned)written);
 
   // With a known size, end(false) fails on a truncated download.
   // Also verifies the image header and (if given) the md5, then sets the boot partition.
   if (!Update.end(!sizeKnown)) {
-    Serial.printf("[OTA] Update failed: %s\n", Update.errorString());
+    Serial.printf("[OTA] Update failed: %s\r\n", Update.errorString());
     Update.abort();
     return false;
   }
@@ -207,7 +207,7 @@ void confirmRunningFirmware() {
     abort();
 #endif
     if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
-      Serial.printf("[OTA] New firmware %s marked valid (rollback cancelled)\n", FIRMWARE_VERSION);
+      Serial.printf("[OTA] New firmware %s marked valid (rollback cancelled)\r\n", FIRMWARE_VERSION);
     } else {
       Serial.println("[OTA] ERROR: could not mark firmware valid");
     }
@@ -219,12 +219,12 @@ void confirmRunningFirmware() {
   String pending = readKey(prefs, KEY_PENDING);
   if (!pending.isEmpty()) {
     if (pending == FIRMWARE_VERSION) {
-      Serial.printf("[OTA] Update to %s succeeded\n", pending.c_str());
+      Serial.printf("[OTA] Update to %s succeeded\r\n", pending.c_str());
       if (prefs.isKey(KEY_BAD)) prefs.remove(KEY_BAD);
     } else {
       // Rolled back (or power was lost before reboot). Don't auto-retry it.
       Serial.printf("[OTA] Update to %s did not stick - still on %s. Marking %s as bad "
-                    "(use 'ota force' to retry)\n",
+                    "(use 'ota force' to retry)\r\n",
                     pending.c_str(), FIRMWARE_VERSION, pending.c_str());
       prefs.putString(KEY_BAD, pending);
     }
@@ -245,10 +245,10 @@ void checkAndUpdate(bool force) {
   long current[3], offered[3];
   parseVersion(FIRMWARE_VERSION, current);
   if (!parseVersion(manifest.version, offered)) {
-    Serial.printf("[OTA] Manifest version \"%s\" is not MAJOR.MINOR.PATCH\n", manifest.version.c_str());
+    Serial.printf("[OTA] Manifest version \"%s\" is not MAJOR.MINOR.PATCH\r\n", manifest.version.c_str());
     return;
   }
-  Serial.printf("[OTA] Running %s, manifest offers %s\n", FIRMWARE_VERSION, manifest.version.c_str());
+  Serial.printf("[OTA] Running %s, manifest offers %s\r\n", FIRMWARE_VERSION, manifest.version.c_str());
 
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, false);
@@ -261,7 +261,7 @@ void checkAndUpdate(bool force) {
       return;
     }
     if (bad == manifest.version) {
-      Serial.printf("[OTA] %s failed to boot before - skipping (use 'ota force' to retry)\n", bad.c_str());
+      Serial.printf("[OTA] %s failed to boot before - skipping (use 'ota force' to retry)\r\n", bad.c_str());
       prefs.end();
       return;
     }
@@ -275,7 +275,7 @@ void checkAndUpdate(bool force) {
   }
   prefs.end();
 
-  Serial.printf("[OTA] Flashed %s - rebooting\n", manifest.version.c_str());
+  Serial.printf("[OTA] Flashed %s - rebooting\r\n", manifest.version.c_str());
   Serial.flush();
   delay(200);
   ESP.restart();
@@ -293,13 +293,13 @@ void printStatus() {
   prefs.end();
 
   Serial.println("---------- OTA status ----------");
-  Serial.printf("Firmware version : %s\n", FIRMWARE_VERSION);
-  Serial.printf("Running partition: %s @ 0x%06x (state: %s)\n", running->label, (unsigned)running->address,
+  Serial.printf("Firmware version : %s\r\n", FIRMWARE_VERSION);
+  Serial.printf("Running partition: %s @ 0x%06x (state: %s)\r\n", running->label, (unsigned)running->address,
                 hasState ? stateName(state) : "n/a");
-  Serial.printf("Next OTA slot    : %s\n", next ? next->label : "none");
-  Serial.printf("Rollback possible: %s\n", esp_ota_check_rollback_is_possible() ? "yes" : "no");
-  Serial.printf("Bad version      : %s\n", bad.isEmpty() ? "-" : bad.c_str());
-  Serial.printf("Manifest URL     : %s\n", OTA_MANIFEST_URL);
+  Serial.printf("Next OTA slot    : %s\r\n", next ? next->label : "none");
+  Serial.printf("Rollback possible: %s\r\n", esp_ota_check_rollback_is_possible() ? "yes" : "no");
+  Serial.printf("Bad version      : %s\r\n", bad.isEmpty() ? "-" : bad.c_str());
+  Serial.printf("Manifest URL     : %s\r\n", OTA_MANIFEST_URL);
   Serial.println("--------------------------------");
 }
 

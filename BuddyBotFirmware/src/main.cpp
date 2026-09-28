@@ -305,14 +305,14 @@ void setupOTA() {
     
     // Print current status code every 5 seconds
     if (attempts > 0 && attempts % 10 == 0) {
-      Serial.printf("\n[WiFi Handshake Status]: %s\n", getWiFiStatusName(WiFi.status()));
+      Serial.printf("\r\n[WiFi Handshake Status]: %s\r\n", getWiFiStatusName(WiFi.status()));
     }
     attempts++;
   }
 
   // 4. Verify Connection Result
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n\n[WiFi] CONNECTION SUCCESSFUL!");
+    Serial.println("\r\n\r\n[WiFi] CONNECTION SUCCESSFUL!");
     Serial.print("[WiFi] IP Address: ");
     Serial.println(WiFi.localIP());
     Serial.print("[WiFi] Signal Strength (RSSI): ");
@@ -328,7 +328,7 @@ void setupOTA() {
     });
 
     ArduinoOTA.onEnd([]() {
-      Serial.println("\n[OTA] Update Complete! Rebooting...");
+      Serial.println("\r\n[OTA] Update Complete! Rebooting...");
     });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
@@ -347,11 +347,11 @@ void setupOTA() {
     ArduinoOTA.begin();
     Serial.println("[OTA] Service initialized and listening for updates.");
   } else {
-    Serial.println("\n\n[WiFi] CONNECTION FAILED!");
-    Serial.printf("[WiFi] Final Reason: %s\n", getWiFiStatusName(WiFi.status()));
+    Serial.println("\r\n\r\n[WiFi] CONNECTION FAILED!");
+    Serial.printf("[WiFi] Final Reason: %s\r\n", getWiFiStatusName(WiFi.status()));
     Serial.println("[WiFi] Proceeding to run animation in OFFLINE mode.");
   }
-  Serial.println("==========================================\n");
+  Serial.println("==========================================\r\n");
 }
 
 #if BUZZER_SELFTEST
@@ -408,8 +408,8 @@ void handleSerialCommands() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println("\n==========================================");
-  Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (fw %s)\n", FIRMWARE_VERSION);
+  Serial.println("\r\n==========================================");
+  Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (fw %s)\r\n", FIRMWARE_VERSION);
   Serial.println("==========================================");
 
   // Initialize FastLED (LEDs remain OFF during WiFi setup to prevent brownout)
