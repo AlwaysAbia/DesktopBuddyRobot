@@ -11,7 +11,7 @@ A desktop robot with a circular addressable-LED "eye" driven by an ESP32.
 | `BuddyRobot3DModel/` | Enclosure CAD and printable STLs | Autodesk Inventor |
 
 Interfaces shared between firmware, the mobile app and the server are documented in
-[`BuddyBotFirmware/interface-contract.md`](BuddyBotFirmware/interface-contract.md).
+[`interface-contract.md`](interface-contract.md).
 
 ## Firmware quick start
 

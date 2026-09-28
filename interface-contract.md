@@ -6,7 +6,8 @@ defines or changes a UUID, NVS key, RPC method, or attribute name, **update
 this file in the same session**, before finishing. Later sessions (especially
 the Flutter app session) are built directly against what's written here.
 
-Keep this file in the firmware repo root so every session can find it.
+Keep this file at the repository root (shared by firmware, mobile app and
+server) so every session can find it.
 
 ---
 
