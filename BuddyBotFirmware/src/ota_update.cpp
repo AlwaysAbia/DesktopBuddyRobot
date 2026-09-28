@@ -15,7 +15,7 @@
 // default initArduino() marks a freshly OTA'd image valid before setup() even
 // runs, which makes rollback useless. Overriding this weak hook to return true
 // hands that decision to us: ota::confirmRunningFirmware().
-// Applies to every OTA path (ThingsBoard OTA and ArduinoOTA pushes alike).
+// Applies to any image installed by OTA.
 // ==========================================
 extern "C" bool verifyRollbackLater() {
   return true;

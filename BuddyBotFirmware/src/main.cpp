@@ -2,9 +2,6 @@
 #include <FastLED.h>
 #include <math.h>
 #include <WiFi.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
 
 #include "ota_config.h"
 #include "ota_update.h"
@@ -15,14 +12,12 @@
 #include "secrets_loader.h"
 
 // ==========================================
-// WI-FI & OTA CONFIGURATION
-// Two OTA paths:
-//   - ArduinoOTA: local push from the IDE (`pio run -e esp32dev_ota -t upload`)
-//   - ThingsBoard OTA: package assigned in ThingsBoard, pulled over MQTT (src/ota_update.cpp)
+// WI-FI CONFIGURATION
+// Firmware updates come only from ThingsBoard OTA (src/ota_update.cpp);
+// USB upload is the recovery path.
 // ==========================================
 const char* ssid     = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-const char* otaHost  = "ESP32-SciFi-Eye";
 
 // ==========================================
 // HARDWARE & FASTLED CONFIGURATION
@@ -276,9 +271,9 @@ const char* getWiFiStatusName(wl_status_t status) {
 }
 
 // ==========================================
-// OTA & WI-FI INITIALIZATION WITH LOGGING
+// WI-FI INITIALIZATION WITH LOGGING
 // ==========================================
-void setupOTA() {
+void setupWiFi() {
   // 1. Fully disconnect and clear lingering state
   WiFi.disconnect(true);
   delay(100);
@@ -314,34 +309,6 @@ void setupOTA() {
     Serial.print("[WiFi] Signal Strength (RSSI): ");
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
-
-    // Configure ArduinoOTA
-    ArduinoOTA.setHostname(otaHost);
-
-    ArduinoOTA.onStart([]() {
-      Serial.println("[OTA] Firmware update starting...");
-      FastLED.clear(true);
-    });
-
-    ArduinoOTA.onEnd([]() {
-      Serial.println("\r\n[OTA] Update Complete! Rebooting...");
-    });
-
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) {
-      Serial.printf("[OTA] Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    });
-
-    ArduinoOTA.begin();
-    Serial.println("[OTA] Service initialized and listening for updates.");
   } else {
     Serial.println("\r\n\r\n[WiFi] CONNECTION FAILED!");
     Serial.printf("[WiFi] Final Reason: %s\r\n", getWiFiStatusName(WiFi.status()));
@@ -419,8 +386,8 @@ void setup() {
   ota::confirmRunningFirmware();
   ota::printStatus();
 
-  // Initialize WiFi and OTA
-  setupOTA();
+  // Initialize WiFi
+  setupWiFi();
 
   // ThingsBoard connects from loop(); the boot check waits for it.
   ota::begin();
@@ -430,8 +397,7 @@ void setup() {
 }
 
 void loop() {
-  // Check for wireless updates
-  ArduinoOTA.handle();
+  // ThingsBoard connection + OTA check
   tb_client::loop();
   ota::loop();
   handleSerialCommands();
