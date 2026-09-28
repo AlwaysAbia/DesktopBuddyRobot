@@ -6,6 +6,9 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 
+#include "ota_config.h"
+#include "ota_update.h"
+
 // Credentials live in include/secrets.h (gitignored).
 // Copy include/secrets.example.h to include/secrets.h and fill it in.
 #if __has_include("secrets.h")
@@ -17,6 +20,9 @@
 
 // ==========================================
 // WI-FI & OTA CONFIGURATION
+// Two OTA paths:
+//   - ArduinoOTA: local push from the IDE (`pio run -e esp32dev_ota -t upload`)
+//   - Pull OTA: device fetches OTA_MANIFEST_URL (include/ota_config.h)
 // ==========================================
 const char* ssid     = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
@@ -277,12 +283,6 @@ const char* getWiFiStatusName(wl_status_t status) {
 // OTA & WI-FI INITIALIZATION WITH LOGGING
 // ==========================================
 void setupOTA() {
-  Serial.begin(115200);
-  delay(200);
-  Serial.println("\n==========================================");
-  Serial.println("   ESP32 Sci-Fi Robot Eye Booting");
-  Serial.println("==========================================");
-
   // 1. Fully disconnect and clear lingering state
   WiFi.disconnect(true);
   delay(100);
@@ -305,14 +305,14 @@ void setupOTA() {
     
     // Print current status code every 5 seconds
     if (attempts > 0 && attempts % 10 == 0) {
-      Serial.printf("\n[WiFi Handshake Status]: %s\n", getWiFiStatusName(WiFi.status()));
+      Serial.printf("\r\n[WiFi Handshake Status]: %s\r\n", getWiFiStatusName(WiFi.status()));
     }
     attempts++;
   }
 
   // 4. Verify Connection Result
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n\n[WiFi] CONNECTION SUCCESSFUL!");
+    Serial.println("\r\n\r\n[WiFi] CONNECTION SUCCESSFUL!");
     Serial.print("[WiFi] IP Address: ");
     Serial.println(WiFi.localIP());
     Serial.print("[WiFi] Signal Strength (RSSI): ");
@@ -328,7 +328,7 @@ void setupOTA() {
     });
 
     ArduinoOTA.onEnd([]() {
-      Serial.println("\n[OTA] Update Complete! Rebooting...");
+      Serial.println("\r\n[OTA] Update Complete! Rebooting...");
     });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
@@ -347,11 +347,11 @@ void setupOTA() {
     ArduinoOTA.begin();
     Serial.println("[OTA] Service initialized and listening for updates.");
   } else {
-    Serial.println("\n\n[WiFi] CONNECTION FAILED!");
-    Serial.printf("[WiFi] Final Reason: %s\n", getWiFiStatusName(WiFi.status()));
+    Serial.println("\r\n\r\n[WiFi] CONNECTION FAILED!");
+    Serial.printf("[WiFi] Final Reason: %s\r\n", getWiFiStatusName(WiFi.status()));
     Serial.println("[WiFi] Proceeding to run animation in OFFLINE mode.");
   }
-  Serial.println("==========================================\n");
+  Serial.println("==========================================\r\n");
 }
 
 #if BUZZER_SELFTEST
@@ -373,9 +373,45 @@ void buzzerSelfTest() {
 #endif
 
 // ==========================================
+// SERIAL COMMANDS
+//   ota        - check the manifest, install if newer
+//   ota force  - install whatever the manifest offers
+//   status     - print version / partition / rollback state
+// ==========================================
+void runPullOTA(bool force) {
+  // The check blocks rendering; blank the eye rather than freeze it mid-frame
+  // (also keeps LED current down while flash is being written).
+  FastLED.clear(true);
+  ota::checkAndUpdate(force);  // only returns if nothing was installed
+}
+
+void handleSerialCommands() {
+  static String line;
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c != '\n' && c != '\r') {
+      if (line.length() < 32) line += c;
+      continue;
+    }
+    line.trim();
+    if (line == "ota")            runPullOTA(false);
+    else if (line == "ota force") runPullOTA(true);
+    else if (line == "status")    ota::printStatus();
+    else if (line.length())       Serial.println("Commands: ota | ota force | status");
+    line = "";
+  }
+}
+
+// ==========================================
 // MAIN SETUP & LOOP
 // ==========================================
 void setup() {
+  Serial.begin(115200);
+  delay(200);
+  Serial.println("\r\n==========================================");
+  Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (fw %s)\r\n", FIRMWARE_VERSION);
+  Serial.println("==========================================");
+
   // Initialize FastLED (LEDs remain OFF during WiFi setup to prevent brownout)
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
@@ -388,13 +424,24 @@ void setup() {
   // Pre-calculate 2D matrix map
   buildCoordinateMap();
 
+  // Rollback safety: an image freshly installed by OTA (either path) must
+  // confirm itself, or the bootloader reverts it on the next reset.
+  // Keep this early in setup().
+  ota::confirmRunningFirmware();
+  ota::printStatus();
+
   // Initialize WiFi and OTA
   setupOTA();
+
+#if OTA_CHECK_ON_BOOT
+  runPullOTA(false);
+#endif
 }
 
 void loop() {
   // Check for wireless updates
   ArduinoOTA.handle();
+  handleSerialCommands();
 
   // Run render pipeline
   updateGazeTarget();
