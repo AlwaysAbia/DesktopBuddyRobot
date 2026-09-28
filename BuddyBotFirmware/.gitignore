@@ -7,5 +7,5 @@
 # Local WiFi credentials (see include/secrets.example.h)
 include/secrets.h
 
-# Pull-OTA packaging output (tools/make_ota_manifest.py)
+# Stage 1 pull-OTA test output (obsolete, safe to delete locally)
 ota_out/

@@ -1,5 +1,6 @@
-// Pull-based OTA: fetch a manifest over HTTP(S), compare versions, flash the
-// other app slot with Update.h, reboot. Rollback-safe: see ota_update.cpp.
+// ThingsBoard OTA: firmware packages assigned to this device in ThingsBoard are
+// downloaded over the MQTT connection (tb_client) and flashed to the other app
+// slot. Rollback-safe: see ota_update.cpp.
 #pragma once
 
 namespace ota {
@@ -9,13 +10,21 @@ namespace ota {
 // called, the next reset rolls back to the previous firmware.
 void confirmRunningFirmware();
 
-// Fetch the manifest and, if it offers a newer version, download + flash it
-// and reboot (does not return in that case). force = install whatever the
-// manifest offers, even if not newer or previously failed.
-// Blocks for the duration of the check/download. Needs WiFi.
-void checkAndUpdate(bool force);
+// Hook into tb_client: report firmware version / update result on connect.
+void begin();
 
-// Print version, partition and rollback state to Serial.
+// Ask ThingsBoard which package is assigned and install it if it differs from
+// the running version. Non-blocking: waits for the connection if needed, the
+// rest happens in loop(). force = also install a version that failed to boot before.
+void requestCheck(bool force);
+
+// Drives the check. Call every loop, after tb_client::loop().
+void loop();
+
+// True while a firmware download/flash is in progress.
+bool isUpdating();
+
+// Print version, partition, rollback and ThingsBoard state to Serial.
 void printStatus();
 
 }  // namespace ota
