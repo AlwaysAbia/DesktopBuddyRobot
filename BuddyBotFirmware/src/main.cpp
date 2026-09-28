@@ -38,6 +38,13 @@ const char* otaHost  = "ESP32-SciFi-Eye";
 #define BUZZER_PIN          32   // GPIO 32
 #define BUZZER_ACTIVE_HIGH  1    // Active buzzer driven directly / via NPN. Set 0 for active-low (PNP) modules.
 
+// TEMPORARY: buzzer pin unknown. When 1, boot runs a pin scan instead of the
+// self-test above: each candidate pin gets a burst of beeps whose count is its
+// position in the list (GPIO32 = 1 beep, GPIO33 = 2, GPIO25 = 3, GPIO26 = 4).
+// GPIO34/35 are input-only on the ESP32 and cannot drive a buzzer, so they are
+// not scanned. Remove once BUZZER_PIN is confirmed.
+#define BUZZER_PIN_SCAN     1
+
 CRGB leds[NUM_LEDS];
 
 struct Point2D {
@@ -371,6 +378,48 @@ void buzzerSelfTest() {
 }
 #endif
 
+#if BUZZER_PIN_SCAN
+// ~2.5 kHz square wave via plain digitalWrite (no PWM peripheral). Sounds on
+// active and passive buzzers, and regardless of active-high/low wiring.
+void buzzerToneBurst(uint8_t pin, unsigned long durationMs) {
+  const unsigned long halfPeriodUs = 200;
+  const unsigned long cycles = (durationMs * 1000UL) / (2 * halfPeriodUs);
+  for (unsigned long c = 0; c < cycles; c++) {
+    digitalWrite(pin, HIGH);
+    delayMicroseconds(halfPeriodUs);
+    digitalWrite(pin, LOW);
+    delayMicroseconds(halfPeriodUs);
+  }
+}
+
+void buzzerPinScan() {
+  const uint8_t candidates[] = {32, 33, 25, 26};
+  const int numCandidates = sizeof(candidates) / sizeof(candidates[0]);
+
+  Serial.begin(115200);
+  delay(200);
+  Serial.println("\n[BUZZ] Pin scan: beep count = position (32=1, 33=2, 25=3, 26=4). Runs twice.");
+
+  for (int pass = 0; pass < 2; pass++) {
+    for (int i = 0; i < numCandidates; i++) {
+      const uint8_t pin = candidates[i];
+      Serial.printf("[BUZZ] GPIO%u -> %d beep(s)\n", pin, i + 1);
+
+      pinMode(pin, OUTPUT);
+      digitalWrite(pin, LOW);
+      for (int b = 0; b <= i; b++) {
+        buzzerToneBurst(pin, 150);
+        delay(200);
+      }
+      pinMode(pin, INPUT);  // release the pin so it isn't left driving anything
+
+      delay(1500);
+    }
+  }
+  Serial.println("[BUZZ] Pin scan done.");
+}
+#endif
+
 // ==========================================
 // MAIN SETUP & LOOP
 // ==========================================
@@ -380,7 +429,9 @@ void setup() {
   FastLED.setBrightness(BRIGHTNESS);
   FastLED.clear(true);
 
-#if BUZZER_SELFTEST
+#if BUZZER_PIN_SCAN
+  buzzerPinScan();
+#elif BUZZER_SELFTEST
   buzzerSelfTest();
 #endif
 
