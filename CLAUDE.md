@@ -65,6 +65,33 @@ updates from ThingsBoard Cloud. Mobile app and BLE come later.
 
 - Claude has no hardware access. End every firmware change with a numbered manual
   test plan for the user, and say plainly what couldn't be verified.
+- The user works **remotely**: no serial monitor and no USB access to the robot.
+  - Write test plans against the ThingsBoard dashboard (attributes, telemetry,
+    OTA state), not serial output.
+  - Treat every OTA release as unrecoverable if it breaks WiFi or the ThingsBoard
+    connection. Rollback is the only safety net, so keep it intact and don't ship
+    anything that weakens it.
+
+## Open work: remote operation
+
+Do these before other features, in this order. Remove each item once it's done.
+
+1. **Remote update trigger.** Checks currently start only at boot or via serial `ota`.
+   Add a ThingsBoard RPC (e.g. `checkForUpdate`, optional `force`) that calls
+   `ota::requestCheck()`, or switch to the SDK's `Subscribe_Firmware_Update` so an
+   assigned package installs automatically. Ask the user which one.
+2. **Remote status.** Report what serial `status` prints (running partition, rollback
+   state, bad version, last OTA error, RSSI, uptime) as ThingsBoard client attributes
+   and telemetry.
+3. **Confirm only after connecting.** `ota::confirmRunningFirmware()` marks a new image
+   valid early in `setup()`, before WiFi, so a build that breaks connectivity would
+   stay installed. Move `esp_ota_mark_app_valid_cancel_rollback()` to after the first
+   successful ThingsBoard connect, with a timeout (a few minutes) that calls
+   `esp_ota_mark_app_invalid_rollback_and_reboot()`. Keep the early-boot crash
+   protection. Tell the user to keep USB nearby for the one OTA that installs this change.
+4. **Test plans.** Once 1–3 exist, all testing is done from the ThingsBoard dashboard.
+
+Put any new RPC methods and attribute keys in `interface-contract.md`.
 - The buzzer never sounded during bring-up; its pin is unconfirmed and the self-test
   is disabled (`BUZZER_SELFTEST 0`). Don't build features that depend on it
   until the user confirms the hardware.
