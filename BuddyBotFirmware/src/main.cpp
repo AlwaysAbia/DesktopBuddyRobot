@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <FastLED.h>
 #include <math.h>
 #include <WiFi.h>
@@ -5,11 +6,20 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 
+// Credentials live in include/secrets.h (gitignored).
+// Copy include/secrets.example.h to include/secrets.h and fill it in.
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#warning "include/secrets.h not found - building with empty WiFi credentials (OFFLINE mode)"
+#include "secrets.example.h"
+#endif
+
 // ==========================================
 // WI-FI & OTA CONFIGURATION
 // ==========================================
-const char* ssid     = ""; 
-const char* password = "";     
+const char* ssid     = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 const char* otaHost  = "ESP32-SciFi-Eye";
 
 // ==========================================
@@ -19,6 +29,15 @@ const char* otaHost  = "ESP32-SciFi-Eye";
 #define NUM_LEDS     76
 #define BRIGHTNESS   120
 #define FPS          60
+
+// ==========================================
+// BUZZER SELF-TEST (Phase 0 bring-up)
+// DISABLED: no sound on GPIO32/33/25/26 during bring-up. Buzzer hardware is
+// suspect and the actual pin is unconfirmed. Re-enable once that is resolved.
+// ==========================================
+#define BUZZER_SELFTEST     0
+#define BUZZER_PIN          32   // UNCONFIRMED - see note above
+#define BUZZER_ACTIVE_HIGH  1    // Active buzzer driven directly / via NPN. Set 0 for active-low (PNP) modules.
 
 CRGB leds[NUM_LEDS];
 
@@ -335,6 +354,24 @@ void setupOTA() {
   Serial.println("==========================================\n");
 }
 
+#if BUZZER_SELFTEST
+// 3 short beeps. Active buzzer: plain on/off, no PWM.
+void buzzerSelfTest() {
+  const uint8_t onLevel  = BUZZER_ACTIVE_HIGH ? HIGH : LOW;
+  const uint8_t offLevel = BUZZER_ACTIVE_HIGH ? LOW : HIGH;
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, offLevel);
+
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(BUZZER_PIN, onLevel);
+    delay(80);
+    digitalWrite(BUZZER_PIN, offLevel);
+    delay(120);
+  }
+}
+#endif
+
 // ==========================================
 // MAIN SETUP & LOOP
 // ==========================================
@@ -343,6 +380,10 @@ void setup() {
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
   FastLED.clear(true);
+
+#if BUZZER_SELFTEST
+  buzzerSelfTest();
+#endif
 
   // Pre-calculate 2D matrix map
   buildCoordinateMap();
