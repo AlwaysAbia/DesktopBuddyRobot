@@ -8,21 +8,17 @@
 
 #include "ota_config.h"
 #include "ota_update.h"
+#include "tb_client.h"
 
 // Credentials live in include/secrets.h (gitignored).
 // Copy include/secrets.example.h to include/secrets.h and fill it in.
-#if __has_include("secrets.h")
-#include "secrets.h"
-#else
-#warning "include/secrets.h not found - building with empty WiFi credentials (OFFLINE mode)"
-#include "secrets.example.h"
-#endif
+#include "secrets_loader.h"
 
 // ==========================================
 // WI-FI & OTA CONFIGURATION
 // Two OTA paths:
 //   - ArduinoOTA: local push from the IDE (`pio run -e esp32dev_ota -t upload`)
-//   - Pull OTA: device fetches OTA_MANIFEST_URL (include/ota_config.h)
+//   - ThingsBoard OTA: package assigned in ThingsBoard, pulled over MQTT (src/ota_update.cpp)
 // ==========================================
 const char* ssid     = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
@@ -374,17 +370,10 @@ void buzzerSelfTest() {
 
 // ==========================================
 // SERIAL COMMANDS
-//   ota        - check the manifest, install if newer
-//   ota force  - install whatever the manifest offers
-//   status     - print version / partition / rollback state
+//   ota        - install the package assigned in ThingsBoard if it differs
+//   ota force  - same, even if that version failed to boot before
+//   status     - print version / partition / rollback / ThingsBoard state
 // ==========================================
-void runPullOTA(bool force) {
-  // The check blocks rendering; blank the eye rather than freeze it mid-frame
-  // (also keeps LED current down while flash is being written).
-  FastLED.clear(true);
-  ota::checkAndUpdate(force);  // only returns if nothing was installed
-}
-
 void handleSerialCommands() {
   static String line;
   while (Serial.available()) {
@@ -394,8 +383,8 @@ void handleSerialCommands() {
       continue;
     }
     line.trim();
-    if (line == "ota")            runPullOTA(false);
-    else if (line == "ota force") runPullOTA(true);
+    if (line == "ota")            ota::requestCheck(false);
+    else if (line == "ota force") ota::requestCheck(true);
     else if (line == "status")    ota::printStatus();
     else if (line.length())       Serial.println("Commands: ota | ota force | status");
     line = "";
@@ -409,7 +398,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.println("\r\n==========================================");
-  Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (fw %s)\r\n", FIRMWARE_VERSION);
+  Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (%s %s)\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION);
   Serial.println("==========================================");
 
   // Initialize FastLED (LEDs remain OFF during WiFi setup to prevent brownout)
@@ -433,15 +422,33 @@ void setup() {
   // Initialize WiFi and OTA
   setupOTA();
 
+  // ThingsBoard connects from loop(); the boot check waits for it.
+  ota::begin();
 #if OTA_CHECK_ON_BOOT
-  runPullOTA(false);
+  ota::requestCheck(false);
 #endif
 }
 
 void loop() {
   // Check for wireless updates
   ArduinoOTA.handle();
+  tb_client::loop();
+  ota::loop();
   handleSerialCommands();
+
+  // While a ThingsBoard firmware download is running, keep the eye dark
+  // (lower current while flash is written) and skip the frame delay so chunks
+  // are requested back-to-back.
+  static bool blanked = false;
+  if (ota::isUpdating()) {
+    if (!blanked) {
+      FastLED.clear(true);
+      blanked = true;
+    }
+    delay(1);
+    return;
+  }
+  blanked = false;
 
   // Run render pipeline
   updateGazeTarget();

@@ -1,17 +1,18 @@
-// Firmware version + OTA settings. This is the file you touch to cut a new
-// OTA build: bump FIRMWARE_VERSION, rebuild, publish the .bin + manifest.
+// Firmware identity + OTA settings. This is the file you touch to cut a new
+// OTA build: bump FIRMWARE_VERSION, rebuild, upload .pio/build/esp32dev/firmware.bin
+// to ThingsBoard as an OTA package with the same title and version.
 #pragma once
 
-// Semantic version "MAJOR.MINOR.PATCH" of THIS build. The device only
-// installs a manifest version that compares strictly greater than this.
-#define FIRMWARE_VERSION "0.1.0"
+// Must equal the "Title" of the ThingsBoard OTA package. The device refuses
+// packages with any other title.
+#define FIRMWARE_TITLE "BuddyBot"
 
-// Where the device looks for the update manifest. http:// (local test server)
-// and https:// (GitHub raw, etc. - verified against the built-in CA bundle)
-// both work. Manifest format: see interface-contract.md, section 4.
-#define OTA_MANIFEST_URL "http://192.168.1.100:8000/manifest.json"
+// Version of THIS build. The device installs whatever package version is
+// assigned to it in ThingsBoard if it differs from this (downgrades included),
+// unless that version previously failed to boot (see interface-contract.md).
+#define FIRMWARE_VERSION "0.2.0"
 
-// 1 = run one update check right after WiFi connects on boot.
+// 1 = run one update check as soon as the ThingsBoard connection is up after boot.
 // A check can always be started manually with the serial command "ota".
 #define OTA_CHECK_ON_BOOT 1
 

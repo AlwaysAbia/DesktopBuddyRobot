@@ -4,3 +4,6 @@
 
 #define WIFI_SSID     ""
 #define WIFI_PASSWORD ""
+
+// ThingsBoard device access token (device "buddybot-01" -> "Copy access token").
+#define TB_ACCESS_TOKEN ""

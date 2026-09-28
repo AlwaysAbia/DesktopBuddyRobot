@@ -1,15 +1,13 @@
 #include "ota_update.h"
 
 #include <Arduino.h>
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <NetworkClientSecure.h>
-#include <Update.h>
 #include <Preferences.h>
-#include <ArduinoJson.h>
 #include <esp_ota_ops.h>
+#include <Espressif_Updater.h>
 
 #include "ota_config.h"
+#include "tb_client.h"
+#include "thingsboard_config.h"
 
 // ==========================================
 // ROLLBACK
@@ -17,15 +15,11 @@
 // default initArduino() marks a freshly OTA'd image valid before setup() even
 // runs, which makes rollback useless. Overriding this weak hook to return true
 // hands that decision to us: ota::confirmRunningFirmware().
-// Applies to every OTA path (this pull OTA and ArduinoOTA pushes alike).
+// Applies to every OTA path (ThingsBoard OTA and ArduinoOTA pushes alike).
 // ==========================================
 extern "C" bool verifyRollbackLater() {
   return true;
 }
-
-// Mozilla root CA bundle compiled into the core (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
-extern const uint8_t ca_bundle_start[] asm("_binary_x509_crt_bundle_start");
-extern const uint8_t ca_bundle_end[]   asm("_binary_x509_crt_bundle_end");
 
 namespace {
 
@@ -35,16 +29,42 @@ const char* NVS_NAMESPACE = "ota";
 const char* KEY_PENDING   = "pending";  // version we just flashed, cleared on next boot
 const char* KEY_BAD       = "bad";      // version that failed to boot (rolled back)
 
+// Firmware chunk download over MQTT.
+constexpr uint8_t  CHUNK_RETRIES      = 12U;
+constexpr uint16_t CHUNK_SIZE         = 4096U;
+constexpr uint64_t REQUEST_TIMEOUT_US = 10ULL * 1000ULL * 1000ULL;
+
+// ThingsBoard-defined shared attributes describing the assigned OTA package.
+constexpr char FW_TITLE_KEY[]   = "fw_title";
+constexpr char FW_VERSION_KEY[] = "fw_version";
+constexpr const char* ASSIGNED_KEYS[] = {FW_TITLE_KEY, FW_VERSION_KEY};
+
+// Client attributes this device reports (interface-contract.md, section 3).
+constexpr char ATTR_CURRENT_TITLE[]   = "current_fw_title";
+constexpr char ATTR_CURRENT_VERSION[] = "current_fw_version";
+
+enum class Stage { Idle, WaitingForConnection, WaitingForAttributes, Downloading };
+
+Stage stage = Stage::Idle;
+bool forceInstall = false;
+Espressif_Updater<> updater;
+
+// Filled from the attribute response (tb.loop() context) or timeout (esp_timer task).
+volatile bool attributesReceived = false;
+volatile bool attributesTimedOut = false;
+char assignedTitle[48]   = "";
+char assignedVersion[32] = "";
+String targetVersion;
+
+// Result of the previous OTA, determined at boot, reported once ThingsBoard is up.
+enum class BootReport { None, Updated, RolledBack };
+BootReport bootReport = BootReport::None;
+String rolledBackVersion;
+
 // Preferences::getString() logs an error for a missing key; check first.
 String readKey(Preferences& prefs, const char* key) {
   return prefs.isKey(key) ? prefs.getString(key, "") : String();
 }
-
-struct Manifest {
-  String version;
-  String url;
-  String md5;  // optional
-};
 
 const char* stateName(esp_ota_img_states_t state) {
   switch (state) {
@@ -58,137 +78,138 @@ const char* stateName(esp_ota_img_states_t state) {
   }
 }
 
-// Parses "1.2.3" or "v1.2.3"; missing parts count as 0.
-bool parseVersion(const String& text, long out[3]) {
-  const char* p = text.c_str();
-  if (*p == 'v' || *p == 'V') p++;
-  for (int i = 0; i < 3; i++) {
-    out[i] = 0;
-    if (*p == '\0') continue;
-    if (!isdigit((unsigned char)*p)) return false;
-    char* end;
-    out[i] = strtol(p, &end, 10);
-    p = end;
-    if (*p == '.') p++;
-    else if (*p != '\0') return false;
-  }
-  return *p == '\0';
+void clearPending() {
+  Preferences prefs;
+  prefs.begin(NVS_NAMESPACE, false);
+  if (prefs.isKey(KEY_PENDING)) prefs.remove(KEY_PENDING);
+  prefs.end();
 }
 
-// <0 if a<b, 0 if equal, >0 if a>b.
-int compareVersions(const long a[3], const long b[3]) {
-  for (int i = 0; i < 3; i++) {
-    if (a[i] != b[i]) return a[i] < b[i] ? -1 : 1;
-  }
-  return 0;
+// ---------- SDK callbacks ----------
+
+void onAttributesReceived(JsonObjectConst const& data) {
+  strlcpy(assignedTitle, data[FW_TITLE_KEY] | "", sizeof(assignedTitle));
+  strlcpy(assignedVersion, data[FW_VERSION_KEY] | "", sizeof(assignedVersion));
+  attributesReceived = true;
 }
 
-// HTTPClient borrows the network client, so the caller owns both.
-// Without our own secure client, HTTPClient::begin(url) silently uses setInsecure().
-bool httpBegin(HTTPClient& http, NetworkClient& plain, NetworkClientSecure& secure, const String& url) {
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(15000);
-  if (url.startsWith("https://")) {
-    secure.setCACertBundle(ca_bundle_start, ca_bundle_end - ca_bundle_start);
-    return http.begin(secure, url);
-  }
-  return http.begin(plain, url);
+void onAttributesTimeout() {
+  attributesTimedOut = true;  // esp_timer task: only set a flag
 }
 
-bool fetchManifest(Manifest& manifest) {
-  NetworkClient plain;
-  NetworkClientSecure secure;
-  HTTPClient http;
-
-  Serial.printf("[OTA] Fetching manifest: %s\r\n", OTA_MANIFEST_URL);
-  if (!httpBegin(http, plain, secure, OTA_MANIFEST_URL)) {
-    Serial.println("[OTA] Invalid manifest URL");
-    return false;
-  }
-
-  int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    Serial.printf("[OTA] Manifest request failed: %d (%s)\r\n", code, http.errorToString(code).c_str());
-    http.end();
-    return false;
-  }
-  String body = http.getString();
-  http.end();
-
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, body);
-  if (err) {
-    Serial.printf("[OTA] Manifest is not valid JSON: %s\r\n", err.c_str());
-    return false;
-  }
-
-  manifest.version = doc["version"] | "";
-  manifest.url     = doc["url"] | "";
-  manifest.md5     = doc["md5"] | "";
-  if (manifest.version.isEmpty() || manifest.url.isEmpty()) {
-    Serial.println("[OTA] Manifest must contain \"version\" and \"url\"");
-    return false;
-  }
-  return true;
+void onUpdateStarting() {
+  // Recorded before the first byte is written, so a rollback can be detected on next boot.
+  Preferences prefs;
+  prefs.begin(NVS_NAMESPACE, false);
+  prefs.putString(KEY_PENDING, targetVersion);
+  prefs.end();
+  Serial.printf("[OTA] Downloading %s %s from ThingsBoard\r\n", FIRMWARE_TITLE, targetVersion.c_str());
 }
 
-bool downloadAndFlash(const Manifest& manifest) {
-  NetworkClient plain;
-  NetworkClientSecure secure;
-  HTTPClient http;
+void onProgress(size_t const& current, size_t const& total) {
+  static int lastDecile = -1;
+  if (total == 0) return;
+  int decile = (int)(current * 10 / total);
+  if (current <= 1) lastDecile = -1;
+  if (decile != lastDecile) {
+    lastDecile = decile;
+    Serial.printf("[OTA] Progress: %d%%\r\n", decile * 10);
+  }
+}
 
-  // HTTP/1.0 = no chunked transfer encoding, so the stream is the raw binary.
-  http.useHTTP10(true);
+void onFinished(bool const& success) {
+  if (success) {
+    // SDK has already verified the checksum and set the boot partition.
+    Serial.printf("[OTA] Flashed %s - rebooting\r\n", targetVersion.c_str());
+    Serial.flush();
+    delay(300);
+    esp_restart();
+  }
+  Serial.println("[OTA] Update failed - still running " FIRMWARE_VERSION " (state reported to ThingsBoard)");
+  clearPending();
+  stage = Stage::Idle;
+}
 
-  Serial.printf("[OTA] Downloading: %s\r\n", manifest.url.c_str());
-  if (!httpBegin(http, plain, secure, manifest.url)) {
-    Serial.println("[OTA] Invalid firmware URL");
-    return false;
+// ---------- check flow ----------
+
+void sendAttributeRequest() {
+  attributesReceived = false;
+  attributesTimedOut = false;
+  const Attribute_Request_Callback<2U> callback(&onAttributesReceived, REQUEST_TIMEOUT_US, &onAttributesTimeout,
+                                                ASSIGNED_KEYS + 0U, ASSIGNED_KEYS + 2U);
+  if (!tb_client::attributeRequestApi().Shared_Attributes_Request(callback)) {
+    Serial.println("[OTA] Could not request assigned firmware from ThingsBoard");
+    stage = Stage::Idle;
+    return;
+  }
+  Serial.println("[OTA] Asking ThingsBoard which firmware is assigned ...");
+  stage = Stage::WaitingForAttributes;
+}
+
+void evaluateAssignment() {
+  auto& otaApi = tb_client::otaApi();
+  stage = Stage::Idle;
+
+  if (assignedVersion[0] == '\0') {
+    Serial.println("[OTA] No firmware package assigned to this device (or its profile) in ThingsBoard");
+    return;
+  }
+  Serial.printf("[OTA] Running %s %s, ThingsBoard assigns %s %s\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION,
+                assignedTitle, assignedVersion);
+
+  if (strcmp(assignedTitle, FIRMWARE_TITLE) != 0) {
+    Serial.printf("[OTA] Package title \"%s\" is not \"%s\" - ignoring\r\n", assignedTitle, FIRMWARE_TITLE);
+    otaApi.Firmware_Send_State(FW_STATE_FAILED, "Package title does not match device firmware title");
+    return;
+  }
+  if (strcmp(assignedVersion, FIRMWARE_VERSION) == 0) {
+    Serial.println("[OTA] Already up to date");
+    otaApi.Firmware_Send_State(FW_STATE_UPDATED);
+    return;
   }
 
-  int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    Serial.printf("[OTA] Firmware request failed: %d (%s)\r\n", code, http.errorToString(code).c_str());
-    http.end();
-    return false;
+  Preferences prefs;
+  prefs.begin(NVS_NAMESPACE, true);
+  String bad = readKey(prefs, KEY_BAD);
+  prefs.end();
+  if (!forceInstall && bad == assignedVersion) {
+    Serial.printf("[OTA] %s failed to boot before - skipping (use 'ota force' to retry)\r\n", assignedVersion);
+    String error = String(assignedVersion) + " previously failed to boot and was rolled back; not retrying";
+    otaApi.Firmware_Send_State(FW_STATE_FAILED, error.c_str());
+    return;
   }
 
-  int length = http.getSize();
-  bool sizeKnown = length > 0;
-  if (!Update.begin(sizeKnown ? (size_t)length : UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-    Serial.printf("[OTA] Update.begin failed: %s\r\n", Update.errorString());
-    http.end();
-    return false;
+  targetVersion = assignedVersion;
+  const OTA_Update_Callback callback(FIRMWARE_TITLE, FIRMWARE_VERSION, &updater, &onFinished, &onProgress,
+                                     &onUpdateStarting, CHUNK_RETRIES, CHUNK_SIZE, REQUEST_TIMEOUT_US);
+  if (!otaApi.Start_Firmware_Update(callback)) {
+    Serial.println("[OTA] Could not start firmware update");
+    return;
   }
-  if (!manifest.md5.isEmpty() && !Update.setMD5(manifest.md5.c_str())) {
-    Serial.println("[OTA] Manifest md5 is not a 32-char hex string");
-    Update.abort();
-    http.end();
-    return false;
+  stage = Stage::Downloading;
+}
+
+// Runs once after every ThingsBoard (re)connect.
+void onTbConnected() {
+  auto& tb = tb_client::tb();
+  auto& otaApi = tb_client::otaApi();
+
+  // current_fw_* as telemetry is what ThingsBoard's OTA dashboard reads;
+  // the same keys as client attributes are our stable "what is running" record.
+  otaApi.Firmware_Send_Info(FIRMWARE_TITLE, FIRMWARE_VERSION);
+  tb.sendAttributeData(ATTR_CURRENT_TITLE, FIRMWARE_TITLE);
+  tb.sendAttributeData(ATTR_CURRENT_VERSION, FIRMWARE_VERSION);
+  Serial.printf("[TB] Reported %s %s\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION);
+
+  if (bootReport == BootReport::Updated) {
+    otaApi.Firmware_Send_State(FW_STATE_UPDATED);
+    Serial.println("[TB] Reported fw_state UPDATED");
+  } else if (bootReport == BootReport::RolledBack) {
+    String error = rolledBackVersion + " did not boot; rolled back to " FIRMWARE_VERSION;
+    otaApi.Firmware_Send_State(FW_STATE_FAILED, error.c_str());
+    Serial.println("[TB] Reported fw_state FAILED (rollback)");
   }
-
-  int lastDecile = -1;
-  Update.onProgress([&lastDecile](size_t done, size_t total) {
-    if (total == 0 || total == UPDATE_SIZE_UNKNOWN) return;
-    int decile = (int)(done * 10 / total);
-    if (decile != lastDecile) {
-      lastDecile = decile;
-      Serial.printf("[OTA] Progress: %d%%\r\n", decile * 10);
-    }
-  });
-
-  size_t written = Update.writeStream(*http.getStreamPtr());
-  http.end();
-  Serial.printf("[OTA] Wrote %u bytes\r\n", (unsigned)written);
-
-  // With a known size, end(false) fails on a truncated download.
-  // Also verifies the image header and (if given) the md5, then sets the boot partition.
-  if (!Update.end(!sizeKnown)) {
-    Serial.printf("[OTA] Update failed: %s\r\n", Update.errorString());
-    Update.abort();
-    return false;
-  }
-  return true;
+  bootReport = BootReport::None;
 }
 
 }  // namespace
@@ -213,7 +234,7 @@ void confirmRunningFirmware() {
     }
   }
 
-  // Did the last pull OTA we started actually end up running?
+  // Did the last OTA we started actually end up running?
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, false);
   String pending = readKey(prefs, KEY_PENDING);
@@ -221,64 +242,57 @@ void confirmRunningFirmware() {
     if (pending == FIRMWARE_VERSION) {
       Serial.printf("[OTA] Update to %s succeeded\r\n", pending.c_str());
       if (prefs.isKey(KEY_BAD)) prefs.remove(KEY_BAD);
+      bootReport = BootReport::Updated;
     } else {
       // Rolled back (or power was lost before reboot). Don't auto-retry it.
       Serial.printf("[OTA] Update to %s did not stick - still on %s. Marking %s as bad "
                     "(use 'ota force' to retry)\r\n",
                     pending.c_str(), FIRMWARE_VERSION, pending.c_str());
       prefs.putString(KEY_BAD, pending);
+      bootReport = BootReport::RolledBack;
+      rolledBackVersion = pending;
     }
     prefs.remove(KEY_PENDING);
   }
   prefs.end();
 }
 
-void checkAndUpdate(bool force) {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[OTA] Skipping check: WiFi not connected");
+void begin() {
+  tb_client::onConnected(&onTbConnected);
+}
+
+void requestCheck(bool force) {
+  if (stage != Stage::Idle) {
+    Serial.println("[OTA] A check/update is already in progress");
     return;
   }
+  forceInstall = force;
+  stage = Stage::WaitingForConnection;
+  if (!tb_client::connected()) Serial.println("[OTA] Check queued until ThingsBoard is connected");
+}
 
-  Manifest manifest;
-  if (!fetchManifest(manifest)) return;
-
-  long current[3], offered[3];
-  parseVersion(FIRMWARE_VERSION, current);
-  if (!parseVersion(manifest.version, offered)) {
-    Serial.printf("[OTA] Manifest version \"%s\" is not MAJOR.MINOR.PATCH\r\n", manifest.version.c_str());
-    return;
+void loop() {
+  switch (stage) {
+    case Stage::WaitingForConnection:
+      if (tb_client::connected()) sendAttributeRequest();
+      break;
+    case Stage::WaitingForAttributes:
+      if (attributesReceived) {
+        evaluateAssignment();
+      } else if (attributesTimedOut) {
+        // Treat no answer like "nothing assigned".
+        assignedTitle[0] = '\0';
+        assignedVersion[0] = '\0';
+        evaluateAssignment();
+      }
+      break;
+    default:
+      break;
   }
-  Serial.printf("[OTA] Running %s, manifest offers %s\r\n", FIRMWARE_VERSION, manifest.version.c_str());
+}
 
-  Preferences prefs;
-  prefs.begin(NVS_NAMESPACE, false);
-  String bad = readKey(prefs, KEY_BAD);
-
-  if (!force) {
-    if (compareVersions(offered, current) <= 0) {
-      Serial.println("[OTA] Already up to date");
-      prefs.end();
-      return;
-    }
-    if (bad == manifest.version) {
-      Serial.printf("[OTA] %s failed to boot before - skipping (use 'ota force' to retry)\r\n", bad.c_str());
-      prefs.end();
-      return;
-    }
-  }
-
-  prefs.putString(KEY_PENDING, manifest.version);
-  if (!downloadAndFlash(manifest)) {
-    prefs.remove(KEY_PENDING);
-    prefs.end();
-    return;
-  }
-  prefs.end();
-
-  Serial.printf("[OTA] Flashed %s - rebooting\r\n", manifest.version.c_str());
-  Serial.flush();
-  delay(200);
-  ESP.restart();
+bool isUpdating() {
+  return stage == Stage::Downloading;
 }
 
 void printStatus() {
@@ -293,13 +307,14 @@ void printStatus() {
   prefs.end();
 
   Serial.println("---------- OTA status ----------");
-  Serial.printf("Firmware version : %s\r\n", FIRMWARE_VERSION);
+  Serial.printf("Firmware         : %s %s\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION);
   Serial.printf("Running partition: %s @ 0x%06x (state: %s)\r\n", running->label, (unsigned)running->address,
                 hasState ? stateName(state) : "n/a");
   Serial.printf("Next OTA slot    : %s\r\n", next ? next->label : "none");
   Serial.printf("Rollback possible: %s\r\n", esp_ota_check_rollback_is_possible() ? "yes" : "no");
   Serial.printf("Bad version      : %s\r\n", bad.isEmpty() ? "-" : bad.c_str());
-  Serial.printf("Manifest URL     : %s\r\n", OTA_MANIFEST_URL);
+  Serial.printf("ThingsBoard      : %s (%s)\r\n", TB_HOST, tb_client::connected() ? "connected" : "not connected");
+  Serial.printf("Last assigned    : %s\r\n", assignedVersion[0] ? assignedVersion : "-");
   Serial.println("--------------------------------");
 }
 
