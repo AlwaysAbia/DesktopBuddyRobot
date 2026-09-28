@@ -220,7 +220,7 @@ void confirmRunningFirmware() {
   if (!pending.isEmpty()) {
     if (pending == FIRMWARE_VERSION) {
       Serial.printf("[OTA] Update to %s succeeded\n", pending.c_str());
-      prefs.remove(KEY_BAD);
+      if (prefs.isKey(KEY_BAD)) prefs.remove(KEY_BAD);
     } else {
       // Rolled back (or power was lost before reboot). Don't auto-retry it.
       Serial.printf("[OTA] Update to %s did not stick - still on %s. Marking %s as bad "
