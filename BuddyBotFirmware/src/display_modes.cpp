@@ -1,6 +1,7 @@
 #include "display_modes.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 
 #include "clock_mode.h"
@@ -31,12 +32,27 @@ int findStatusLed() {
 
 namespace modes {
 
+static void apply(Mode mode);
+
 void begin() {
   statusLed = findStatusLed();
+  Preferences prefs;
+  prefs.begin("display", false);
+  uint8_t stored = prefs.isKey("mode") ? prefs.getUChar("mode", 0) : 0;
+  prefs.end();
+  apply(stored < MODE_COUNT ? (Mode)stored : Mode::EYE_ANIMATION);
 }
 
 void set(Mode mode) {
   if ((uint8_t)mode >= MODE_COUNT) return;
+  apply(mode);
+  Preferences prefs;
+  prefs.begin("display", false);
+  if (prefs.getUChar("mode", 255) != (uint8_t)mode) prefs.putUChar("mode", (uint8_t)mode);
+  prefs.end();
+}
+
+static void apply(Mode mode) {
   currentMode = mode;
   if (mode == Mode::CURRENT_TIME) clock_mode::onEnter();
   if (mode == Mode::MESSAGE_HISTORY) messages::onEnter();

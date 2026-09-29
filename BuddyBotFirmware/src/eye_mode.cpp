@@ -1,6 +1,7 @@
 #include "eye_mode.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <math.h>
 
 #include "led_matrix.h"
@@ -188,8 +189,23 @@ void renderEyeFrame() {
 
 namespace eye {
 
+void begin() {
+  Preferences prefs;
+  prefs.begin("display", false);
+  uint8_t stored = prefs.isKey("eye_theme") ? prefs.getUChar("eye_theme", THEME_AMBER) : THEME_AMBER;
+  prefs.end();
+  if (stored < THEME_COUNT) currentTheme = stored;
+  Serial.printf("[Eye] Theme %u\r\n", (unsigned)currentTheme);
+}
+
 void setTheme(uint8_t theme) {
-  if (theme < THEME_COUNT) currentTheme = theme;
+  if (theme >= THEME_COUNT || theme == currentTheme) return;
+  currentTheme = theme;
+  Preferences prefs;
+  prefs.begin("display", false);
+  prefs.putUChar("eye_theme", theme);
+  prefs.end();
+  Serial.printf("[Eye] Theme %u\r\n", (unsigned)theme);
 }
 
 uint8_t theme() {

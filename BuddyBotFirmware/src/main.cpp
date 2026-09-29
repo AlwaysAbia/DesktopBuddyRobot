@@ -1,27 +1,24 @@
 #include <Arduino.h>
 #include <FastLED.h>
-#include <WiFi.h>
 
+#include "ble_control.h"
 #include "clock_mode.h"
 #include "display_modes.h"
+#include "eye_mode.h"
 #include "led_matrix.h"
 #include "messages.h"
 #include "ota_config.h"
 #include "ota_update.h"
 #include "remote_test.h"
 #include "tb_client.h"
-
-// Credentials live in include/secrets.h (gitignored).
-// Copy include/secrets.example.h to include/secrets.h and fill it in.
-#include "secrets_loader.h"
+#include "wifi_manager.h"
 
 // ==========================================
-// WI-FI CONFIGURATION
-// Firmware updates come only from ThingsBoard OTA (src/ota_update.cpp);
-// USB upload is the recovery path.
+// WI-FI + BLE
+// WiFi credentials come from NVS and connect in the background (src/wifi_manager.cpp);
+// the app sets them over BLE (src/ble_control.cpp). Firmware updates come only from
+// ThingsBoard OTA (src/ota_update.cpp); USB upload is the recovery path.
 // ==========================================
-const char* ssid     = WIFI_SSID;
-const char* password = WIFI_PASSWORD;
 
 // ==========================================
 // LED PANEL & DISPLAY MODES
@@ -37,67 +34,6 @@ const char* password = WIFI_PASSWORD;
 #define BUZZER_SELFTEST     0
 #define BUZZER_PIN          32   // UNCONFIRMED - see note above
 #define BUZZER_ACTIVE_HIGH  1    // Active buzzer driven directly / via NPN. Set 0 for active-low (PNP) modules.
-
-// Helper function to translate status codes into text
-const char* getWiFiStatusName(wl_status_t status) {
-  switch (status) {
-    case WL_IDLE_STATUS:     return "IDLE_STATUS";
-    case WL_NO_SSID_AVAIL:   return "NO_SSID_AVAIL (SSID not found)";
-    case WL_SCAN_COMPLETED:  return "SCAN_COMPLETED";
-    case WL_CONNECTED:       return "CONNECTED";
-    case WL_CONNECT_FAILED:  return "CONNECT_FAILED (Wrong password/Security mismatch)";
-    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
-    case WL_DISCONNECTED:    return "DISCONNECTED";
-    default:                 return "UNKNOWN";
-  }
-}
-
-// ==========================================
-// WI-FI INITIALIZATION WITH LOGGING
-// ==========================================
-void setupWiFi() {
-  // 1. Fully disconnect and clear lingering state
-  WiFi.disconnect(true);
-  delay(100);
-
-  // 2. Configure Station Mode & Disable Modem Sleep
-  WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false); // Prevents dropouts on Android hotspots
-
-  Serial.print("[WiFi] Attempting connection to SSID: ");
-  Serial.println(ssid);
-
-  WiFi.begin(ssid, password);
-
-  // 3. Connection Handshake Loop with Detailed Debug Prints
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 40) { // 20-second window
-    delay(500);
-    Serial.print(".");
-    
-    // Print current status code every 5 seconds
-    if (attempts > 0 && attempts % 10 == 0) {
-      Serial.printf("\r\n[WiFi Handshake Status]: %s\r\n", getWiFiStatusName(WiFi.status()));
-    }
-    attempts++;
-  }
-
-  // 4. Verify Connection Result
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\r\n\r\n[WiFi] CONNECTION SUCCESSFUL!");
-    Serial.print("[WiFi] IP Address: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("[WiFi] Signal Strength (RSSI): ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
-  } else {
-    Serial.println("\r\n\r\n[WiFi] CONNECTION FAILED!");
-    Serial.printf("[WiFi] Final Reason: %s\r\n", getWiFiStatusName(WiFi.status()));
-    Serial.println("[WiFi] Proceeding to run animation in OFFLINE mode.");
-  }
-  Serial.println("==========================================\r\n");
-}
 
 #if BUZZER_SELFTEST
 // 3 short beeps. Active buzzer: plain on/off, no PWM.
@@ -122,11 +58,10 @@ void buzzerSelfTest() {
 //   ota        - install the package assigned in ThingsBoard if it differs
 //   ota force  - same, even if that version failed to boot before
 //   status     - print version / partition / rollback / ThingsBoard state
-//   mode       - TEMPORARY: switch to the next display mode
 //   msg clear  - TEMPORARY: delete the stored message history
-// The two TEMPORARY commands are test placeholders until BLE control (next
-// session) and Phase 4 messaging exist; remove them then. The same controls
-// are available remotely as the RPCs in remote_test.cpp.
+// "msg clear" is a TEMPORARY test placeholder until Phase 4 messaging exists.
+// It and the mode switch are also available remotely as the RPCs in remote_test.cpp;
+// the app switches modes over BLE.
 // ==========================================
 void handleSerialCommands() {
   static String line;
@@ -140,9 +75,8 @@ void handleSerialCommands() {
     if (line == "ota")            ota::requestCheck(false);
     else if (line == "ota force") ota::requestCheck(true);
     else if (line == "status")    ota::printStatus();
-    else if (line == "mode")      modes::next();          // TEMPORARY, see above
     else if (line == "msg clear") messages::clear();      // TEMPORARY, see above
-    else if (line.length())       Serial.println("Commands: ota | ota force | status | mode | msg clear");
+    else if (line.length())       Serial.println("Commands: ota | ota force | status | msg clear");
     line = "";
   }
 }
@@ -157,7 +91,7 @@ void setup() {
   Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (%s %s)\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION);
   Serial.println("==========================================");
 
-  // Initialize FastLED + coordinate map (LEDs remain OFF during WiFi setup to prevent brownout)
+  // Initialize FastLED + coordinate map
   led_matrix::begin();
 
 #if BUZZER_SELFTEST
@@ -170,12 +104,16 @@ void setup() {
   ota::confirmRunningFirmware();
   ota::printStatus();
 
-  // Display modes (boots into EYE_ANIMATION) + stored message history
+  // Restore the saved eye color, clock time, message history and display mode.
+  eye::begin();
+  clock_mode::begin();
   messages::begin();
   modes::begin();
 
-  // Initialize WiFi
-  setupWiFi();
+  // WiFi connects in the background: the eye is up right away, with or without WiFi.
+  // BLE (mode, color, WiFi provisioning) works either way.
+  wifi_mgr::begin();
+  ble_control::begin();
 
   // ThingsBoard connects from loop(); the boot check waits for it.
   ota::begin();
@@ -186,6 +124,9 @@ void setup() {
 }
 
 void loop() {
+  wifi_mgr::loop();
+  ble_control::loop();  // also during OTA downloads, so the app stays responsive
+
   // ThingsBoard connection + OTA check
   tb_client::loop();
   ota::loop();

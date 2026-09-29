@@ -1,7 +1,7 @@
 # DesktopBuddyRobot
 
 ESP32 desktop robot: FastLED eye animation (76 WS2812B LEDs), WiFi, OTA
-updates from ThingsBoard Cloud. Mobile app and BLE come later.
+updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
 
 - `BuddyBotFirmware/`: PlatformIO project (arduino-esp32 3.2.0 via pioarduino)
 - `BuddyRobotDisplay/`: Altium PCB
@@ -35,8 +35,10 @@ updates from ThingsBoard Cloud. Mobile app and BLE come later.
 
 ## Secrets
 
-- WiFi credentials and `TB_ACCESS_TOKEN` live in `BuddyBotFirmware/include/secrets.h`
-  (gitignored, template in `secrets.example.h`, loaded via `secrets_loader.h`).
+- `TB_ACCESS_TOKEN` and the first-boot WiFi credentials live in `BuddyBotFirmware/include/secrets.h`
+  (gitignored, template in `secrets.example.h`, loaded via `secrets_loader.h`). WiFi credentials
+  are only a seed: `wifi_manager` copies them to NVS on the first-ever boot; after that the app sets
+  them over BLE. Keep them filled in for OTA builds so an already-running robot keeps its network.
 - Never commit secrets, print them, or ask the user to paste the token into chat.
   To check it's set, test for the define without printing its value.
 
@@ -51,8 +53,12 @@ updates from ThingsBoard Cloud. Mobile app and BLE come later.
   - `verifyRollbackLater()` is overridden to return true.
   - `ota::confirmRunningFirmware()` runs early in `setup()`.
   - NVS `ota/pending` / `ota/bad` stop a rolled-back version from being retried.
+  - An interrupted download (reboot, RPC, power loss) also flags that version `bad`. The only fix without
+    serial is a new version string, so re-upload the same build with a higher `FIRMWARE_VERSION`.
+- The robot has a BLE GATT server (`ble_control`) and background WiFi from NVS (`wifi_manager`). BLE
+  layout and how to test with nRF Connect (request MTU 247): `interface-contract.md`, `docs/ble-basics.md`.
 - Update checks are manual (boot check + serial `ota` / `ota force` / `status`).
-  Future triggers (BLE) should call `ota::requestCheck()`.
+  The BLE OTA-check characteristic already calls `ota::requestCheck()`.
 
 ## Code conventions
 
