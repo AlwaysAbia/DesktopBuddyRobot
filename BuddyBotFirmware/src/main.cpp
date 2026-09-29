@@ -208,7 +208,7 @@ void loop() {
   blanked = false;
 
   // Run render pipeline for the current mode
-  if (!remote_test::render()) modes::render();
+  modes::render();
 
   FastLED.show();
   FastLED.delay(1000 / FPS);

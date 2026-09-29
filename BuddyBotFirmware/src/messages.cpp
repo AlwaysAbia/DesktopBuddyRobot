@@ -64,11 +64,20 @@ void begin() {
 }
 
 void add(const char* text) {
+  // Store the text without line breaks (CR / LF); the display has no use for them.
+  char clean[MAX_LENGTH + 1];
+  int length = 0;
+  for (const char* c = text; *c != 0 && length < MAX_LENGTH; c++) {
+    if (*c != 13 && *c != 10) clean[length++] = *c;
+  }
+  clean[length] = 0;
+  if (length == 0) return;  // nothing left to show
+
   // Shift older messages down; the oldest falls off the end.
   for (int i = MAX_MESSAGES - 1; i > 0; i--) {
     strlcpy(stored[i], stored[i - 1], sizeof(stored[i]));
   }
-  strlcpy(stored[0], text, sizeof(stored[0]));
+  strlcpy(stored[0], clean, sizeof(stored[0]));
   if (storedCount < MAX_MESSAGES) storedCount++;
   save();
   onEnter();

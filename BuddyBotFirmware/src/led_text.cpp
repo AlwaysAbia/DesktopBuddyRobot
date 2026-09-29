@@ -11,12 +11,8 @@ namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
 constexpr float PIXEL        = 0.19f;  // one font pixel = one LED pitch (text is tilted onto the LED grid)
-constexpr float SCROLL_STEPS_PER_SEC = 3.0f;  // whole font pixels per second (~0.75 character/s)
 constexpr float SCROLL_SPEED = 0.50f;          // units per second for the smooth style (~0.65 character/s)
-constexpr unsigned long LETTER_MS     = 600;   // LETTERS style: time per character
-constexpr unsigned long LETTER_GAP_MS = 150;   // blank part of that time
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
-constexpr int   EDGE_COLUMNS = 5;      // the same, in whole font pixels (EDGE_COLUMNS * PIXEL ~ EDGE)
 
 const float TEXT_COS = cosf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
 const float TEXT_SIN = sinf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
@@ -130,42 +126,10 @@ void draw(const char* text, int len, float left, CRGB color) {
 
 namespace led_text {
 
-namespace {
-Style currentStyle = Style::LETTERS;
-}
-
-void setStyle(Style style) {
-  currentStyle = style;
-}
-
-Style style() {
-  return currentStyle;
-}
-
 bool drawScrolling(const char* text, unsigned long startMs, CRGB color) {
   int len = strlen(text);
-  unsigned long elapsed = millis() - startMs;
-
-  if (currentStyle == Style::LETTERS) {
-    // One character at a time, centered, with a short blank gap so repeated
-    // letters ("LL") still read as two.
-    unsigned long index = elapsed / LETTER_MS;
-    if (index >= (unsigned long)len) return true;
-    if (elapsed % LETTER_MS < LETTER_MS - LETTER_GAP_MS) {
-      draw(text + index, 1, -3.0f * PIXEL, color);  // 5 columns, centered to within half an LED
-    }
-    return false;
-  }
-
   float width = (len * CELL_COLUMNS - 1) * PIXEL;
-  float left;
-  if (currentStyle == Style::STEPPED) {
-    // Whole font pixels: every LED changes on the same frame.
-    unsigned long steps = (unsigned long)(elapsed * SCROLL_STEPS_PER_SEC / 1000.0f);
-    left = ((long)EDGE_COLUMNS - (long)steps) * PIXEL;
-  } else {
-    left = EDGE - SCROLL_SPEED * elapsed / 1000.0f;
-  }
+  float left = EDGE - SCROLL_SPEED * (millis() - startMs) / 1000.0f;
   if (left + width < -EDGE) return true;
   draw(text, len, left, color);
   return false;

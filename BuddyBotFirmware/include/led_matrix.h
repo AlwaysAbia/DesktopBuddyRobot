@@ -24,10 +24,6 @@ extern Point2D ledCoords[NUM_LEDS];
 // True physical positions (even LED pitch, a real disc). Used by screenPos().
 extern Point2D panelCoords[NUM_LEDS];
 
-// TEMPORARY wiring test: rows in different colors, the first LED of each row (in
-// wiring order) white. Photograph it to see how the panel is really laid out.
-void renderTestRows();
-
 // Registers the strip with FastLED (LEDs off) and builds ledCoords.
 void begin();
 

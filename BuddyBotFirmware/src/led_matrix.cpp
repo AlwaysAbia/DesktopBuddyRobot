@@ -88,15 +88,6 @@ void begin() {
   buildPanelMap();
 }
 
-void renderTestRows() {
-  int ledIndex = 0;
-  for (int r = 0; r < NUM_ROWS; r++) {
-    for (int c = 0; c < rowLengths[r]; c++) {
-      leds[ledIndex++] = c == 0 ? CRGB(255, 255, 255) : CRGB(CHSV(r * 25, 255, 140));
-    }
-  }
-}
-
 Point2D screenPos(int i) {
   return { panelCoords[i].x * SCREEN_X_SIGN, panelCoords[i].y * SCREEN_Y_SIGN };
 }

@@ -66,14 +66,12 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
   - OTA-availability push attribute: none of our own. ThingsBoard sets the shared attributes `fw_title`, `fw_version`, `fw_size`, `fw_checksum`, `fw_checksum_algorithm` when a package is assigned. The device reads them only when a check runs (boot or serial `ota`), so it does not auto-update on assignment yet.
 - RPC methods:
   - Incoming message method name: `TBD` (parameter format: `TBD`)
-  - **TEMPORARY** test RPCs (`BuddyBotFirmware/src/remote_test.cpp`), two-way, no params. They'll be removed when BLE mode control and Phase 4 messaging replace them:
+  - **TEMPORARY** test RPCs (`BuddyBotFirmware/src/remote_test.cpp`), two-way (`nextMode`, `clearMessages`, `reboot` take no params). They'll be removed when BLE mode control and Phase 4 messaging replace them:
     - `nextMode`: switches to the next display mode.
     - `clearMessages`: deletes the stored message history (RAM + NVS `msgs/*`).
-    - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars).
+    - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars). CR / LF characters are removed; a message that is empty after that is ignored.
     - `reboot`: restarts the device ~1.5 s after responding.
-    - `ledTest`: params `{"on": true|false}` (omit to toggle). Shows a wiring test pattern (rows in different colors, first LED of each row white) instead of the current mode; also adds `"ledTest": <bool>` to the response.
-    - `textStyle`: params `{"style": 0|1|2}` = smooth scroll / stepped scroll / one letter at a time (default 0); response adds `"textStyle"`.
-    - All respond `{"mode": "<EYE_ANIMATION|CURRENT_TIME|MESSAGE_HISTORY>", "timeSynced": <bool>, "messages": <0-3>}` (state after the action).
+    - All four respond `{"mode": "<EYE_ANIMATION|CURRENT_TIME|MESSAGE_HISTORY>", "timeSynced": <bool>, "messages": <0-3>}` (state after the action).
 - OTA package naming convention:
   - Package **Title** = `BuddyBot` (must equal `FIRMWARE_TITLE` in `BuddyBotFirmware/include/ota_config.h`; the device rejects other titles)
   - Package **Version** = `FIRMWARE_VERSION` of the build, `MAJOR.MINOR.PATCH`
@@ -90,6 +88,4 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | B (Stage 1) | 2026-09-28 | Added NVS keys `ota/pending` and `ota/bad`; added section 4 (pull-OTA manifest format) |
 | B (Stage 2) | 2026-09-28 | Filled in section 3 (ThingsBoard host, profile `BuddyBot`, device `buddybot-01`, token location, `current_fw_*` attributes, OTA package naming). Removed section 4 (pull-OTA manifest), replaced by ThingsBoard OTA. NVS `ota/*` keys now used by ThingsBoard OTA. |
 | C (Phase 2a) | 2026-09-29 | Added NVS keys `msgs/m0`..`msgs/m2` (message history), display mode and eye theme numbering, TEMPORARY test RPCs `nextMode` / `clearMessages` and serial `mode` / `msg clear`. |
-| C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. |
-| C (Phase 2a fixes 2) | 2026-09-29 | TEMPORARY RPC `ledTest`. |
-| C (Phase 2a fixes 3) | 2026-09-29 | TEMPORARY RPC `textStyle`; RPC method limit raised to 8. |
+| C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. Display: clock and text use an even-pitch LED map, `SCREEN_Y_SIGN` -1, text tilted 45 degrees (`TEXT_ROTATION_DEG`) with a 5x7 font; RPC method/response-field limits raised to 8. |
