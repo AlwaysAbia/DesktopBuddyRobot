@@ -14,14 +14,14 @@
 namespace {
 
 // Clock face layout, in screen units (panel radius ~0.95).
-constexpr float TICK_RADIUS   = 0.90f;
+constexpr float TICK_RADIUS   = 0.85f;
 constexpr float HOUR_LENGTH   = 0.45f;
-constexpr float MINUTE_LENGTH = 0.85f;
-constexpr float HAND_STEP     = 0.10f;   // finer than the LED pitch, so no gaps
+constexpr float MINUTE_LENGTH = 0.80f;
+constexpr float HAND_STEP     = 0.05f;   // finer than the LED pitch, so no gaps
 
-const CRGB HOUR_COLOR     = CRGB(255, 140, 0);
-const CRGB MINUTE_COLOR   = CRGB(120, 200, 255);
-const CRGB SECOND_COLOR   = CRGB(0, 120, 0);
+const CRGB HOUR_COLOR     = CRGB(255, 110, 0);
+const CRGB MINUTE_COLOR   = CRGB(0, 120, 255);
+const CRGB SECOND_COLOR   = CRGB(150, 0, 150);
 const CRGB TICK_12_COLOR  = CRGB(150, 150, 150);
 const CRGB TICK_COLOR     = CRGB(45, 45, 45);
 const CRGB NO_TIME_COLOR  = CRGB(160, 60, 0);

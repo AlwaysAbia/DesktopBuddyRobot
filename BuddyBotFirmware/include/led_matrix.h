@@ -21,10 +21,13 @@ extern CRGB leds[NUM_LEDS];
 // Positions in visual space, roughly the unit disk (radius ~0.95).
 extern Point2D ledCoords[NUM_LEDS];
 
+// True physical positions (even LED pitch, a real disc). Used by screenPos().
+extern Point2D panelCoords[NUM_LEDS];
+
 // Registers the strip with FastLED (LEDs off) and builds ledCoords.
 void begin();
 
-// LED i's position for the clock and text: ledCoords with the
+// LED i's position for the clock and text: panelCoords with the
 // SCREEN_*_SIGN orientation from display_config.h applied. +y up, +x right.
 Point2D screenPos(int i);
 

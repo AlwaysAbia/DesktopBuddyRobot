@@ -9,8 +9,8 @@
 namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
-constexpr float PIXEL        = 0.30f;  // ~1.5 LED pitch: thin strokes need more than one LED per font pixel
-constexpr float SCROLL_SPEED = 0.60f;  // units per second (~0.5 character/s)
+constexpr float PIXEL        = 0.27f;  // ~2 LEDs per font pixel (the lattice is diagonal on screen)
+constexpr float SCROLL_SPEED = 0.55f;  // units per second (~0.5 character/s)
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
 
 constexpr int GLYPH_ROWS    = 5;
