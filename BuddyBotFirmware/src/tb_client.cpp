@@ -24,9 +24,11 @@ Arduino_MQTT_Client mqttClient(tlsClient);
 
 OTA_Firmware_Update<> otaApiInstance;
 tb_client::AttributeRequestApi attributeRequestApiInstance;
-const std::array<IAPI_Implementation*, 2U> apis = {
+tb_client::RpcApi rpcApiInstance;
+const std::array<IAPI_Implementation*, 3U> apis = {
   &otaApiInstance,
   &attributeRequestApiInstance,
+  &rpcApiInstance,
 };
 
 ThingsBoard tbInstance(mqttClient, MAX_MESSAGE_RECEIVE_SIZE, MAX_MESSAGE_SEND_SIZE, Default_Max_Stack_Size, apis);
@@ -104,6 +106,10 @@ OTA_Firmware_Update<>& otaApi() {
 
 AttributeRequestApi& attributeRequestApi() {
   return attributeRequestApiInstance;
+}
+
+RpcApi& rpcApi() {
+  return rpcApiInstance;
 }
 
 }  // namespace tb_client

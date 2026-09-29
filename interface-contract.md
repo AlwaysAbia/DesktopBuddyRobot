@@ -37,12 +37,16 @@ Pairing: "just works" (no PIN/bonding).
 |-----------|-----------|--------|---------|
 | `ota`     | `pending` | string | Firmware version an OTA update just started flashing. Written before the download, cleared on the next boot. |
 | `ota`     | `bad`     | string | Version that was flashed but didn't boot (rolled back). Checks skip it (and report `FAILED`); `ota force` overrides. Cleared when an update succeeds. |
+| `msgs`    | `m0`      | string | Newest stored message (max 100 chars). Missing key = empty slot. |
+| `msgs`    | `m1`      | string | Second newest message. |
+| `msgs`    | `m2`      | string | Oldest of the 3 stored messages. A new message shifts `m0`→`m1`→`m2` and drops the old `m2`. |
 
 Known items to persist (fill in exact keys as sessions define them):
 - Last selected mode
 - Last selected eye color
 - WiFi SSID / password
-- Last 3 received messages
+
+Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `EYE_ANIMATION`, `1` = `CURRENT_TIME`, `2` = `MESSAGE_HISTORY`. Boot mode is `EYE_ANIMATION` (not persisted yet). Eye color themes (`eye::Theme`): `0` = Cyan, `1` = Amber (boot default), `2` = Emerald, `3` = Magenta.
 
 ---
 
@@ -62,12 +66,16 @@ Known items to persist (fill in exact keys as sessions define them):
   - OTA-availability push attribute: none of our own. ThingsBoard sets the shared attributes `fw_title`, `fw_version`, `fw_size`, `fw_checksum`, `fw_checksum_algorithm` when a package is assigned. The device reads them only when a check runs (boot or serial `ota`), so it does not auto-update on assignment yet.
 - RPC methods:
   - Incoming message method name: `TBD` (parameter format: `TBD`)
+  - **TEMPORARY** test RPCs (`BuddyBotFirmware/src/remote_test.cpp`), two-way, no params. They'll be removed when BLE mode control and Phase 4 messaging replace them:
+    - `nextMode`: switches to the next display mode.
+    - `clearMessages`: deletes the stored message history (RAM + NVS `msgs/*`).
+    - Both respond `{"mode": "<EYE_ANIMATION|CURRENT_TIME|MESSAGE_HISTORY>", "timeSynced": <bool>, "messages": <0-3>}` (state after the action).
 - OTA package naming convention:
   - Package **Title** = `BuddyBot` (must equal `FIRMWARE_TITLE` in `BuddyBotFirmware/include/ota_config.h`; the device rejects other titles)
   - Package **Version** = `FIRMWARE_VERSION` of the build, `MAJOR.MINOR.PATCH`
   - Package type Firmware, device profile `BuddyBot`, binary = `BuddyBotFirmware/.pio/build/esp32dev/firmware.bin`, checksum MD5 or SHA-256 (auto-generated is fine)
   - Install rule: installs the assigned version if it differs from the running one (downgrades allowed), unless it is the NVS `ota/bad` version
-- Serial commands (115200 baud): `ota`, `ota force`, `status`
+- Serial commands (115200 baud): `ota`, `ota force`, `status`, plus TEMPORARY `mode` (next display mode) and `msg clear` (same as the RPCs above)
 
 ---
 
@@ -77,3 +85,4 @@ Known items to persist (fill in exact keys as sessions define them):
 |---------|------|----------------|
 | B (Stage 1) | 2026-09-28 | Added NVS keys `ota/pending` and `ota/bad`; added section 4 (pull-OTA manifest format) |
 | B (Stage 2) | 2026-09-28 | Filled in section 3 (ThingsBoard host, profile `BuddyBot`, device `buddybot-01`, token location, `current_fw_*` attributes, OTA package naming). Removed section 4 (pull-OTA manifest), replaced by ThingsBoard OTA. NVS `ota/*` keys now used by ThingsBoard OTA. |
+| C (Phase 2a) | 2026-09-29 | Added NVS keys `msgs/m0`..`msgs/m2` (message history), display mode and eye theme numbering, TEMPORARY test RPCs `nextMode` / `clearMessages` and serial `mode` / `msg clear`. |

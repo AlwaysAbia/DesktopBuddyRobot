@@ -1,10 +1,14 @@
 #include <Arduino.h>
 #include <FastLED.h>
-#include <math.h>
 #include <WiFi.h>
 
+#include "clock_mode.h"
+#include "display_modes.h"
+#include "led_matrix.h"
+#include "messages.h"
 #include "ota_config.h"
 #include "ota_update.h"
+#include "remote_test.h"
 #include "tb_client.h"
 
 // Credentials live in include/secrets.h (gitignored).
@@ -20,12 +24,10 @@ const char* ssid     = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 
 // ==========================================
-// HARDWARE & FASTLED CONFIGURATION
+// LED PANEL & DISPLAY MODES
+// Pin / LED count / brightness / FPS: include/led_matrix.h
+// Modes (eye, clock, message history): include/display_modes.h
 // ==========================================
-#define DATA_PIN     16   // GPIO 16
-#define NUM_LEDS     76
-#define BRIGHTNESS   120
-#define FPS          60
 
 // ==========================================
 // BUZZER SELF-TEST (Phase 0 bring-up)
@@ -35,226 +37,6 @@ const char* password = WIFI_PASSWORD;
 #define BUZZER_SELFTEST     0
 #define BUZZER_PIN          32   // UNCONFIRMED - see note above
 #define BUZZER_ACTIVE_HIGH  1    // Active buzzer driven directly / via NPN. Set 0 for active-low (PNP) modules.
-
-CRGB leds[NUM_LEDS];
-
-struct Point2D {
-  float x; // Horizontal in Visual Space
-  float y; // Vertical in Visual Space
-};
-
-Point2D ledCoords[NUM_LEDS];
-
-const int NUM_ROWS = 10;
-const int rowLengths[NUM_ROWS] = {4, 6, 8, 10, 10, 10, 10, 8, 6, 4};
-const bool IS_SERPENTINE = true; 
-
-void buildCoordinateMap() {
-  int ledIndex = 0;
-
-  // Rotated angle (-135.0f) for matrix alignment
-  const float rad = -135.0f * (M_PI / 180.0f); 
-  const float cosA = cosf(rad);
-  const float sinA = sinf(rad);
-
-  for (int r = 0; r < NUM_ROWS; r++) {
-    int count = rowLengths[r];
-    float rawY = 1.0f - (2.0f * (r + 0.5f) / (float)NUM_ROWS);
-
-    for (int c = 0; c < count; c++) {
-      // Handle serpentine / zigzag row wiring direction
-      int colIndex = (IS_SERPENTINE && (r % 2 != 0)) ? (count - 1 - c) : c;
-
-      float rawX = -1.0f + (2.0f * (colIndex + 0.5f) / (float)count);
-
-      rawX *= 0.95f;
-      rawY *= 0.95f;
-
-      // Rotational matrix transform
-      float rotatedX = rawX * cosA - rawY * sinA;
-      float rotatedY = rawX * sinA + rawY * cosA;
-
-      ledCoords[ledIndex].x = rotatedX;
-      ledCoords[ledIndex].y = rotatedY;
-
-      ledIndex++;
-    }
-  }
-}
-
-// ==========================================
-// COLOR PALETTES & ANIMATION STATES
-// ==========================================
-struct EyePalette {
-  CRGB irisCore;
-  CRGB irisEdge;
-  CRGB eyelidEdge;
-};
-
-// ACTIVE PALETTE: Amber / Orange
-const EyePalette AMBER_THEME = { CRGB(255, 140, 0), CRGB(120, 20, 0), CRGB(255, 200, 100) };
-
-/* OTHER PALETTES (SAVED FOR FUTURE USE):
-const EyePalette THEMES[4] = {
-  { CRGB(0, 255, 255), CRGB(0, 30, 120), CRGB(180, 255, 255) }, // Cyan
-  { CRGB(255, 140, 0), CRGB(120, 20, 0),  CRGB(255, 200, 100) }, // Amber
-  { CRGB(0, 255, 100), CRGB(0, 80, 20),   CRGB(150, 255, 180) }, // Emerald
-  { CRGB(255, 0, 150), CRGB(80, 0, 80),   CRGB(255, 160, 220) }  // Magenta
-};
-uint8_t currentTheme = 0;
-unsigned long lastThemeChange = 0;
-*/
-
-float currentPupilX = 0.0f, currentPupilY = 0.0f;
-float targetPupilX  = 0.0f, targetPupilY  = 0.0f;
-
-unsigned long lastGazeChange = 0;
-unsigned long gazeInterval   = 2000;
-
-enum BlinkState { IDLE, CLOSING, CLOSED, OPENING };
-BlinkState blinkState = IDLE;
-float blinkProgress   = 0.0f;
-unsigned long lastBlinkCheck = 0;
-unsigned long nextBlinkTime  = 3000;
-
-void updateGazeTarget() {
-  if (millis() - lastGazeChange > gazeInterval) {
-    float angle = (random(0, 360) * M_PI) / 180.0f;
-    float dist  = (random(0, 100) / 100.0f) * 0.40f; 
-    
-    targetPupilX = cosf(angle) * dist;
-    targetPupilY = sinf(angle) * dist;
-
-    gazeInterval   = random(1200, 3500);
-    lastGazeChange = millis();
-  }
-
-  currentPupilX += (targetPupilX - currentPupilX) * 0.08f;
-  currentPupilY += (targetPupilY - currentPupilY) * 0.08f;
-}
-
-void updateBlinkAnimation() {
-  unsigned long now = millis();
-
-  switch (blinkState) {
-    case IDLE:
-      if (now - lastBlinkCheck > nextBlinkTime) {
-        blinkState    = CLOSING;
-        lastBlinkCheck = now;
-      }
-      break;
-
-    case CLOSING:
-      blinkProgress += 0.12f;
-      if (blinkProgress >= 1.0f) {
-        blinkProgress = 1.0f;
-        blinkState    = CLOSED;
-        lastBlinkCheck = now;
-      }
-      break;
-
-    case CLOSED:
-      if (now - lastBlinkCheck > 60) {
-        blinkState = OPENING;
-      }
-      break;
-
-    case OPENING:
-      blinkProgress -= 0.10f;
-      if (blinkProgress <= 0.0f) {
-        blinkProgress  = 0.0f;
-        blinkState     = IDLE;
-        lastBlinkCheck = now;
-        nextBlinkTime  = random(2000, 6000);
-      }
-      break;
-  }
-}
-
-void renderEyeFrame() {
-  /* AUTOMATIC THEME SWITCHING (COMMENTED OUT FOR NOW)
-  if (millis() - lastThemeChange > 5000) {
-    currentTheme = (currentTheme + 1) % 4;
-    lastThemeChange = millis();
-  }
-  const EyePalette& theme = THEMES[currentTheme];
-  */
-
-  const EyePalette& theme = AMBER_THEME; 
-
-  const float pupilRadius = 0.28f;
-  const float irisRadius  = 1.05f; 
-
-  const float glint1X = currentPupilX + 0.10f;
-  const float glint1Y = currentPupilY + 0.10f;
-  const float glint2X = currentPupilX - 0.08f;
-  const float glint2Y = currentPupilY - 0.08f;
-
-  float eyelidCutoffY = (1.0f - blinkProgress) * 0.95f;
-
-  for (int i = 0; i < NUM_LEDS; i++) {
-    float x = ledCoords[i].x;
-    float y = ledCoords[i].y;
-
-    // Eyelid horizontal cutoff
-    float absY = fabsf(y);
-    if (absY >= eyelidCutoffY) {
-      leds[i] = CRGB::Black;
-
-      if (absY < eyelidCutoffY + 0.20f && blinkProgress > 0.05f) {
-        leds[i] = theme.eyelidEdge;
-        leds[i].nscale8(200);
-      }
-      continue;
-    }
-
-    if (blinkProgress >= 0.92f && absY < 0.18f) {
-      leds[i] = theme.eyelidEdge;
-      continue;
-    }
-
-    // Radial rendering
-    float dx = x - currentPupilX;
-    float dy = y - currentPupilY;
-    float distToPupil = sqrtf(dx * dx + dy * dy);
-
-    // Primary Specular Glint
-    float dGlint1 = sqrtf((x - glint1X) * (x - glint1X) + (y - glint1Y) * (y - glint1Y));
-    if (dGlint1 < 0.08f) {
-      leds[i] = CRGB::White;
-      continue;
-    }
-
-    // Secondary Specular Glint
-    float dGlint2 = sqrtf((x - glint2X) * (x - glint2X) + (y - glint2Y) * (y - glint2Y));
-    if (dGlint2 < 0.05f) {
-      leds[i] = CRGB(180, 180, 180);
-      continue;
-    }
-
-    // Pupil
-    if (distToPupil <= pupilRadius) {
-      leds[i] = CRGB::Black;
-    } 
-    // Iris
-    else if (distToPupil <= irisRadius) {
-      float t = (distToPupil - pupilRadius) / (irisRadius - pupilRadius);
-      t = constrain(t, 0.0f, 1.0f);
-
-      CRGB color = blend(theme.irisCore, theme.irisEdge, uint8_t(t * 255.0f));
-
-      if (t > 0.85f) {
-        float rimFactor = (1.0f - t) / 0.15f;
-        color.nscale8(uint8_t(rimFactor * 255.0f));
-      }
-
-      leds[i] = color;
-    } 
-    else {
-      leds[i] = CRGB::Black;
-    }
-  }
-}
 
 // Helper function to translate status codes into text
 const char* getWiFiStatusName(wl_status_t status) {
@@ -340,6 +122,11 @@ void buzzerSelfTest() {
 //   ota        - install the package assigned in ThingsBoard if it differs
 //   ota force  - same, even if that version failed to boot before
 //   status     - print version / partition / rollback / ThingsBoard state
+//   mode       - TEMPORARY: switch to the next display mode
+//   msg clear  - TEMPORARY: delete the stored message history
+// The two TEMPORARY commands are test placeholders until BLE control (next
+// session) and Phase 4 messaging exist; remove them then. The same controls
+// are available remotely as the RPCs in remote_test.cpp.
 // ==========================================
 void handleSerialCommands() {
   static String line;
@@ -353,7 +140,9 @@ void handleSerialCommands() {
     if (line == "ota")            ota::requestCheck(false);
     else if (line == "ota force") ota::requestCheck(true);
     else if (line == "status")    ota::printStatus();
-    else if (line.length())       Serial.println("Commands: ota | ota force | status");
+    else if (line == "mode")      modes::next();          // TEMPORARY, see above
+    else if (line == "msg clear") messages::clear();      // TEMPORARY, see above
+    else if (line.length())       Serial.println("Commands: ota | ota force | status | mode | msg clear");
     line = "";
   }
 }
@@ -368,17 +157,12 @@ void setup() {
   Serial.printf("   ESP32 Sci-Fi Robot Eye Booting (%s %s)\r\n", FIRMWARE_TITLE, FIRMWARE_VERSION);
   Serial.println("==========================================");
 
-  // Initialize FastLED (LEDs remain OFF during WiFi setup to prevent brownout)
-  FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.setBrightness(BRIGHTNESS);
-  FastLED.clear(true);
+  // Initialize FastLED + coordinate map (LEDs remain OFF during WiFi setup to prevent brownout)
+  led_matrix::begin();
 
 #if BUZZER_SELFTEST
   buzzerSelfTest();
 #endif
-
-  // Pre-calculate 2D matrix map
-  buildCoordinateMap();
 
   // Rollback safety: an image freshly installed by OTA (either path) must
   // confirm itself, or the bootloader reverts it on the next reset.
@@ -386,11 +170,16 @@ void setup() {
   ota::confirmRunningFirmware();
   ota::printStatus();
 
+  // Display modes (boots into EYE_ANIMATION) + stored message history
+  messages::begin();
+  modes::begin();
+
   // Initialize WiFi
   setupWiFi();
 
   // ThingsBoard connects from loop(); the boot check waits for it.
   ota::begin();
+  remote_test::begin();  // TEMPORARY mode/message test RPCs
 #if OTA_CHECK_ON_BOOT
   ota::requestCheck(false);
 #endif
@@ -400,6 +189,7 @@ void loop() {
   // ThingsBoard connection + OTA check
   tb_client::loop();
   ota::loop();
+  clock_mode::loop();  // starts NTP once WiFi is up
   handleSerialCommands();
 
   // While a ThingsBoard firmware download is running, keep the eye dark
@@ -416,10 +206,8 @@ void loop() {
   }
   blanked = false;
 
-  // Run render pipeline
-  updateGazeTarget();
-  updateBlinkAnimation();
-  renderEyeFrame();
+  // Run render pipeline for the current mode
+  modes::render();
 
   FastLED.show();
   FastLED.delay(1000 / FPS);
