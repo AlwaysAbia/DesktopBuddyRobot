@@ -4,14 +4,18 @@
 #include <math.h>
 #include <string.h>
 
+#include "display_config.h"
 #include "led_matrix.h"
 
 namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
-constexpr float PIXEL        = 0.27f;  // ~2 LEDs per font pixel (the lattice is diagonal on screen)
-constexpr float SCROLL_SPEED = 0.55f;  // units per second (~0.5 character/s)
+constexpr float PIXEL        = 0.19f;  // one font pixel = one LED pitch (text is tilted onto the LED grid)
+constexpr float SCROLL_SPEED = 0.50f;  // units per second (~0.65 character/s)
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
+
+const float TEXT_COS = cosf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
+const float TEXT_SIN = sinf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
 
 constexpr int GLYPH_ROWS    = 5;
 constexpr int CELL_COLUMNS  = 4;  // 3 glyph columns + 1 blank

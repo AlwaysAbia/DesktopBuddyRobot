@@ -11,10 +11,16 @@
 // Assumes +y is up and +x is right in led_matrix::ledCoords. If the clock
 // runs mirrored or text scrolls the wrong way, flip the matching axis (1 / -1).
 #define SCREEN_X_SIGN 1
-#define SCREEN_Y_SIGN 1
+#define SCREEN_Y_SIGN -1   // was 1: the clock ran counterclockwise and 12 o'clock was at the bottom
 
 // DEBUG: 1 = if the message history is empty at boot, store two dummy
 // messages (persisted to NVS like real ones) so MESSAGE_HISTORY has something
 // to render before Phase 4 exists. Never ship a build with this set.
 // To strip it out: delete this define and the #if block in messages.cpp.
 #define MESSAGES_DEBUG_SEED 0
+
+// Scrolling text is tilted by this many degrees (counterclockwise) so its rows and
+// columns run along the LED grid, which is diagonal on screen. Strokes come out one
+// LED wide and crisp; rotate the robot this many degrees clockwise to read it upright.
+// 0 = upright text (blurry on this grid).
+#define TEXT_ROTATION_DEG 45
