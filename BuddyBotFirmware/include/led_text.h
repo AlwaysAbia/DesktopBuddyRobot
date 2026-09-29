@@ -8,6 +8,14 @@
 
 namespace led_text {
 
+// TEMPORARY comparison of text animations (switched by the textStyle RPC).
+// SMOOTH: continuous scroll. STEPPED: scroll in whole font-pixel steps.
+// LETTERS: one character at a time, no scrolling.
+enum class Style : uint8_t { SMOOTH = 0, STEPPED = 1, LETTERS = 2 };
+constexpr uint8_t STYLE_COUNT = 3;
+void setStyle(Style style);
+Style style();
+
 // Scrolls `text` right to left through the middle of the panel, once,
 // beginning at startMs (millis()). Only adds light (max-blend); it does not
 // clear the panel first. Returns true once the text has fully scrolled off.

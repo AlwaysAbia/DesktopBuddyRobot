@@ -72,6 +72,7 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
     - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars).
     - `reboot`: restarts the device ~1.5 s after responding.
     - `ledTest`: params `{"on": true|false}` (omit to toggle). Shows a wiring test pattern (rows in different colors, first LED of each row white) instead of the current mode; also adds `"ledTest": <bool>` to the response.
+    - `textStyle`: params `{"style": 0|1|2}` = smooth scroll / stepped scroll / one letter at a time (default 0); response adds `"textStyle"`.
     - All respond `{"mode": "<EYE_ANIMATION|CURRENT_TIME|MESSAGE_HISTORY>", "timeSynced": <bool>, "messages": <0-3>}` (state after the action).
 - OTA package naming convention:
   - Package **Title** = `BuddyBot` (must equal `FIRMWARE_TITLE` in `BuddyBotFirmware/include/ota_config.h`; the device rejects other titles)
@@ -91,3 +92,4 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | C (Phase 2a) | 2026-09-29 | Added NVS keys `msgs/m0`..`msgs/m2` (message history), display mode and eye theme numbering, TEMPORARY test RPCs `nextMode` / `clearMessages` and serial `mode` / `msg clear`. |
 | C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. |
 | C (Phase 2a fixes 2) | 2026-09-29 | TEMPORARY RPC `ledTest`. |
+| C (Phase 2a fixes 3) | 2026-09-29 | TEMPORARY RPC `textStyle`; RPC method limit raised to 8. |

@@ -5,6 +5,7 @@
 #include "clock_mode.h"
 #include "display_modes.h"
 #include "led_matrix.h"
+#include "led_text.h"
 #include "messages.h"
 #include "tb_client.h"
 
@@ -58,12 +59,22 @@ void onLedTest(JsonVariantConst const& params, JsonDocument& response) {
   response["ledTest"] = testRows;
 }
 
+// RPC "textStyle": params {"style": 0|1|2} = smooth scroll / stepped scroll / one letter at a time.
+void onTextStyle(JsonVariantConst const& params, JsonDocument& response) {
+  int style = params["style"] | -1;
+  if (style >= 0 && style < led_text::STYLE_COUNT) led_text::setStyle((led_text::Style)style);
+  Serial.printf("[RPC] textStyle %d\r\n", (int)led_text::style());
+  fillState(response);
+  response["textStyle"] = (int)led_text::style();
+}
+
 const RPC_Callback callbacks[] = {
   RPC_Callback("nextMode", &onNextMode),
   RPC_Callback("clearMessages", &onClearMessages),
   RPC_Callback("addMessage", &onAddMessage),
   RPC_Callback("reboot", &onReboot),
   RPC_Callback("ledTest", &onLedTest),
+  RPC_Callback("textStyle", &onTextStyle),
 };
 
 static_assert(sizeof(callbacks) / sizeof(callbacks[0]) <= tb_client::MAX_RPC_METHODS,
