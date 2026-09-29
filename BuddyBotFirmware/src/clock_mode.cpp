@@ -20,11 +20,11 @@ constexpr float HOUR_LENGTH   = 0.45f;
 constexpr float MINUTE_LENGTH = 0.80f;
 constexpr float HAND_STEP     = 0.05f;   // finer than the LED pitch, so no gaps
 
-const CRGB HOUR_COLOR     = CRGB(255, 110, 0);
-const CRGB MINUTE_COLOR   = CRGB(0, 120, 255);
-const CRGB SECOND_COLOR   = CRGB(150, 0, 150);
-const CRGB TICK_12_COLOR  = CRGB(150, 150, 150);
-const CRGB TICK_COLOR     = CRGB(30, 30, 30);
+const CRGB HOUR_COLOR     = CRGB(200, 80, 0);
+const CRGB MINUTE_COLOR   = CRGB(0, 90, 200);
+const CRGB SECOND_COLOR   = CRGB(120, 0, 120);
+const CRGB TICK_12_COLOR  = CRGB(110, 110, 110);
+const CRGB TICK_COLOR     = CRGB(20, 20, 20);
 const CRGB NO_TIME_COLOR  = CRGB(160, 60, 0);
 
 bool sntpStarted = false;

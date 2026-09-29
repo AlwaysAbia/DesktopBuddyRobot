@@ -11,7 +11,7 @@ namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
 constexpr float PIXEL        = 0.19f;  // one font pixel = one LED pitch (text is tilted onto the LED grid)
-constexpr float SCROLL_SPEED = 0.50f;          // units per second for the smooth style (~0.65 character/s)
+constexpr float SCROLL_SPEED = 0.75f;          // units per second (~1 character/s)
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
 
 const float TEXT_COS = cosf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);

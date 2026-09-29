@@ -23,6 +23,11 @@ int storedCount = 0;
 int showing = 0;              // index of the message being scrolled
 unsigned long scrollStart = 0;
 
+// True if led_text can draw c (its font covers ' ' to 'Z', lowercase prints as uppercase).
+bool drawable(char c) {
+  return (c >= ' ' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
 void save() {
   Preferences prefs;
   prefs.begin(NVS_NAMESPACE, false);
@@ -71,7 +76,20 @@ void add(const char* text) {
     if (*c != 13 && *c != 10) clean[length++] = *c;
   }
   clean[length] = 0;
-  if (length == 0) return;  // nothing left to show
+
+  // Trim both ends: spaces, characters the font can't draw (they would show as
+  // "?"), and one pair of surrounding double quotes.
+  int start = 0;
+  while (start < length && (clean[start] == ' ' || !drawable(clean[start]))) start++;
+  while (length > start && (clean[length - 1] == ' ' || !drawable(clean[length - 1]))) length--;
+  if (length - start >= 2 && clean[start] == 34 && clean[length - 1] == 34) {
+    start++;
+    length--;
+  }
+  if (length - start <= 0) return;  // nothing left to show
+  memmove(clean, clean + start, length - start);
+  length -= start;
+  clean[length] = 0;
 
   // Shift older messages down; the oldest falls off the end.
   for (int i = MAX_MESSAGES - 1; i > 0; i--) {

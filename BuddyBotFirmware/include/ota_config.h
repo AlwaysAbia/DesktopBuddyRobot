@@ -10,7 +10,7 @@
 // Version of THIS build. The device installs whatever package version is
 // assigned to it in ThingsBoard if it differs from this (downgrades included),
 // unless that version previously failed to boot (see interface-contract.md).
-#define FIRMWARE_VERSION "0.4.0"
+#define FIRMWARE_VERSION "0.4.1"
 
 // 1 = run one update check as soon as the ThingsBoard connection is up after boot.
 // A check can always be started manually with the serial command "ota".

@@ -107,6 +107,20 @@ void renderEyeFrame() {
 
   float eyelidCutoffY = (1.0f - blinkProgress) * 0.95f;
 
+  // The primary glint is always the LED nearest its ideal spot. A radius test
+  // (the old way) often contained no LED at all and the glint vanished.
+  int glintLed = 0;
+  float glintBest = 1e9f;
+  for (int i = 0; i < NUM_LEDS; i++) {
+    float dx = ledCoords[i].x - glint1X;
+    float dy = ledCoords[i].y - glint1Y;
+    float d = dx * dx + dy * dy;
+    if (d < glintBest) {
+      glintBest = d;
+      glintLed = i;
+    }
+  }
+
   for (int i = 0; i < NUM_LEDS; i++) {
     float x = ledCoords[i].x;
     float y = ledCoords[i].y;
@@ -134,8 +148,7 @@ void renderEyeFrame() {
     float distToPupil = sqrtf(dx * dx + dy * dy);
 
     // Primary Specular Glint
-    float dGlint1 = sqrtf((x - glint1X) * (x - glint1X) + (y - glint1Y) * (y - glint1Y));
-    if (dGlint1 < 0.08f) {
+    if (i == glintLed) {
       leds[i] = CRGB::White;
       continue;
     }
