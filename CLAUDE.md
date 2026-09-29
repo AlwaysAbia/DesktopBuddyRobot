@@ -53,6 +53,10 @@ updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
   - `verifyRollbackLater()` is overridden to return true.
   - `ota::confirmRunningFirmware()` runs early in `setup()`.
   - NVS `ota/pending` / `ota/bad` stop a rolled-back version from being retried.
+  - An interrupted download (reboot, RPC, power loss) also flags that version `bad`. The only fix without
+    serial is a new version string, so re-upload the same build with a higher `FIRMWARE_VERSION`.
+- The robot has a BLE GATT server (`ble_control`) and background WiFi from NVS (`wifi_manager`). BLE
+  layout and how to test with nRF Connect (request MTU 247): `interface-contract.md`, `docs/ble-basics.md`.
 - Update checks are manual (boot check + serial `ota` / `ota force` / `status`).
   The BLE OTA-check characteristic already calls `ota::requestCheck()`.
 
