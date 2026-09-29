@@ -14,6 +14,26 @@ namespace {
 unsigned long rebootAt = 0;  // 0 = no reboot pending
 bool testRows = false;       // wiring test pattern instead of the current mode
 
+// Reads an integer RPC parameter however the dashboard sent it: an object
+// {"key": 1}, a bare number 1, a bare bool, or text ("1" or '{"key": 1}').
+// Returns fallback if none of those fit.
+int intParam(JsonVariantConst params, const char* key, int fallback) {
+  if (params.is<JsonObjectConst>()) return params[key] | fallback;
+  if (params.is<int>()) return params.as<int>();
+  if (params.is<bool>()) return params.as<bool>() ? 1 : 0;
+  if (params.is<const char*>()) {
+    const char* text = params.as<const char*>();
+    if (text == nullptr) return fallback;
+    StaticJsonDocument<96> doc;
+    if (deserializeJson(doc, text) == DeserializationError::Ok) {
+      if (doc.is<JsonObject>()) return doc[key] | fallback;
+      if (doc.is<int>()) return doc.as<int>();
+      if (doc.is<bool>()) return doc.as<bool>() ? 1 : 0;
+    }
+  }
+  return fallback;
+}
+
 // Every response carries the same snapshot, so the dashboard shows the result.
 void fillState(JsonDocument& response) {
   response["mode"] = modes::name(modes::current());
@@ -53,7 +73,7 @@ void onReboot(JsonVariantConst const&, JsonDocument& response) {
 // RPC "ledTest": params {"on": true|false}. Shows the wiring test pattern until
 // switched off (or the next reboot).
 void onLedTest(JsonVariantConst const& params, JsonDocument& response) {
-  testRows = params["on"] | !testRows;
+  testRows = intParam(params, "on", testRows ? 0 : 1) != 0;
   Serial.printf("[RPC] ledTest %d\r\n", (int)testRows);
   fillState(response);
   response["ledTest"] = testRows;
@@ -61,11 +81,12 @@ void onLedTest(JsonVariantConst const& params, JsonDocument& response) {
 
 // RPC "textStyle": params {"style": 0|1|2} = smooth scroll / stepped scroll / one letter at a time.
 void onTextStyle(JsonVariantConst const& params, JsonDocument& response) {
-  int style = params["style"] | -1;
+  int style = intParam(params, "style", -1);
   if (style >= 0 && style < led_text::STYLE_COUNT) led_text::setStyle((led_text::Style)style);
   Serial.printf("[RPC] textStyle %d\r\n", (int)led_text::style());
   fillState(response);
   response["textStyle"] = (int)led_text::style();
+  response["got"] = style;  // what was parsed from the params (-1 = nothing usable)
 }
 
 const RPC_Callback callbacks[] = {
