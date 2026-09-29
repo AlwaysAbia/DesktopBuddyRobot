@@ -16,74 +16,76 @@ constexpr float SCROLL_SPEED = 0.50f;          // units per second for the smoot
 constexpr unsigned long LETTER_MS     = 600;   // LETTERS style: time per character
 constexpr unsigned long LETTER_GAP_MS = 150;   // blank part of that time
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
+constexpr int   EDGE_COLUMNS = 5;      // the same, in whole font pixels (EDGE_COLUMNS * PIXEL ~ EDGE)
 
 const float TEXT_COS = cosf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
 const float TEXT_SIN = sinf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
 
-constexpr int GLYPH_ROWS    = 5;
-constexpr int CELL_COLUMNS  = 4;  // 3 glyph columns + 1 blank
+constexpr int GLYPH_ROWS    = 7;
+constexpr int GLYPH_COLUMNS = 5;
+constexpr int CELL_COLUMNS  = 6;  // 5 glyph columns + 1 blank
 
-// ASCII ' ' (32) to 'Z' (90). One byte per row, top row first, bit 2 = left column.
+// ASCII ' ' (32) to 'Z' (90). One byte per row, top row first, bit 4 = left column.
 const uint8_t FONT[][GLYPH_ROWS] = {
-  {0b000, 0b000, 0b000, 0b000, 0b000},  // ' '
-  {0b010, 0b010, 0b010, 0b000, 0b010},  // '!'
-  {0b101, 0b101, 0b000, 0b000, 0b000},  // '"'
-  {0b101, 0b111, 0b101, 0b111, 0b101},  // '#'
-  {0b011, 0b110, 0b010, 0b011, 0b110},  // '$'
-  {0b101, 0b001, 0b010, 0b100, 0b101},  // '%'
-  {0b010, 0b101, 0b010, 0b101, 0b011},  // '&'
-  {0b010, 0b010, 0b000, 0b000, 0b000},  // '''
-  {0b001, 0b010, 0b010, 0b010, 0b001},  // '('
-  {0b100, 0b010, 0b010, 0b010, 0b100},  // ')'
-  {0b000, 0b101, 0b010, 0b101, 0b000},  // '*'
-  {0b000, 0b010, 0b111, 0b010, 0b000},  // '+'
-  {0b000, 0b000, 0b000, 0b010, 0b100},  // ','
-  {0b000, 0b000, 0b111, 0b000, 0b000},  // '-'
-  {0b000, 0b000, 0b000, 0b000, 0b010},  // '.'
-  {0b001, 0b001, 0b010, 0b100, 0b100},  // '/'
-  {0b111, 0b101, 0b101, 0b101, 0b111},  // '0'
-  {0b010, 0b110, 0b010, 0b010, 0b111},  // '1'
-  {0b111, 0b001, 0b111, 0b100, 0b111},  // '2'
-  {0b111, 0b001, 0b111, 0b001, 0b111},  // '3'
-  {0b101, 0b101, 0b111, 0b001, 0b001},  // '4'
-  {0b111, 0b100, 0b111, 0b001, 0b111},  // '5'
-  {0b111, 0b100, 0b111, 0b101, 0b111},  // '6'
-  {0b111, 0b001, 0b001, 0b001, 0b001},  // '7'
-  {0b111, 0b101, 0b111, 0b101, 0b111},  // '8'
-  {0b111, 0b101, 0b111, 0b001, 0b111},  // '9'
-  {0b000, 0b010, 0b000, 0b010, 0b000},  // ':'
-  {0b000, 0b010, 0b000, 0b010, 0b100},  // ';'
-  {0b001, 0b010, 0b100, 0b010, 0b001},  // '<'
-  {0b000, 0b111, 0b000, 0b111, 0b000},  // '='
-  {0b100, 0b010, 0b001, 0b010, 0b100},  // '>'
-  {0b111, 0b001, 0b010, 0b000, 0b010},  // '?'
-  {0b010, 0b101, 0b111, 0b100, 0b011},  // '@'
-  {0b010, 0b101, 0b111, 0b101, 0b101},  // 'A'
-  {0b110, 0b101, 0b110, 0b101, 0b110},  // 'B'
-  {0b011, 0b100, 0b100, 0b100, 0b011},  // 'C'
-  {0b110, 0b101, 0b101, 0b101, 0b110},  // 'D'
-  {0b111, 0b100, 0b110, 0b100, 0b111},  // 'E'
-  {0b111, 0b100, 0b110, 0b100, 0b100},  // 'F'
-  {0b011, 0b100, 0b101, 0b101, 0b011},  // 'G'
-  {0b101, 0b101, 0b111, 0b101, 0b101},  // 'H'
-  {0b111, 0b010, 0b010, 0b010, 0b111},  // 'I'
-  {0b001, 0b001, 0b001, 0b101, 0b010},  // 'J'
-  {0b101, 0b101, 0b110, 0b101, 0b101},  // 'K'
-  {0b100, 0b100, 0b100, 0b100, 0b111},  // 'L'
-  {0b101, 0b111, 0b111, 0b101, 0b101},  // 'M'
-  {0b110, 0b101, 0b101, 0b101, 0b101},  // 'N'
-  {0b010, 0b101, 0b101, 0b101, 0b010},  // 'O'
-  {0b110, 0b101, 0b110, 0b100, 0b100},  // 'P'
-  {0b010, 0b101, 0b101, 0b110, 0b011},  // 'Q'
-  {0b110, 0b101, 0b110, 0b101, 0b101},  // 'R'
-  {0b011, 0b100, 0b010, 0b001, 0b110},  // 'S'
-  {0b111, 0b010, 0b010, 0b010, 0b010},  // 'T'
-  {0b101, 0b101, 0b101, 0b101, 0b111},  // 'U'
-  {0b101, 0b101, 0b101, 0b101, 0b010},  // 'V'
-  {0b101, 0b101, 0b111, 0b111, 0b101},  // 'W'
-  {0b101, 0b101, 0b010, 0b101, 0b101},  // 'X'
-  {0b101, 0b101, 0b010, 0b010, 0b010},  // 'Y'
-  {0b111, 0b001, 0b010, 0b100, 0b111},  // 'Z'
+  {0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000},  //  
+  {0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000, 0b00100},  // !
+  {0b01010, 0b01010, 0b01010, 0b00000, 0b00000, 0b00000, 0b00000},  // "
+  {0b01010, 0b01010, 0b11111, 0b01010, 0b11111, 0b01010, 0b01010},  // #
+  {0b00100, 0b01111, 0b10100, 0b01110, 0b00101, 0b11110, 0b00100},  // $
+  {0b11001, 0b11001, 0b00010, 0b00100, 0b01000, 0b10011, 0b10011},  // %
+  {0b01100, 0b10010, 0b10100, 0b01000, 0b10101, 0b10010, 0b01101},  // &
+  {0b00100, 0b00100, 0b01000, 0b00000, 0b00000, 0b00000, 0b00000},  // '
+  {0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010},  // (
+  {0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000},  // )
+  {0b00000, 0b00100, 0b10101, 0b01110, 0b10101, 0b00100, 0b00000},  // *
+  {0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000},  // +
+  {0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00100, 0b01000},  // ,
+  {0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000},  // -
+  {0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00100},  // .
+  {0b00001, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b10000},  // /
+  {0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110},  // 0
+  {0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110},  // 1
+  {0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111},  // 2
+  {0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110},  // 3
+  {0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010},  // 4
+  {0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110},  // 5
+  {0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110},  // 6
+  {0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000},  // 7
+  {0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110},  // 8
+  {0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110},  // 9
+  {0b00000, 0b00100, 0b00100, 0b00000, 0b00100, 0b00100, 0b00000},  // :
+  {0b00000, 0b00100, 0b00100, 0b00000, 0b00100, 0b00100, 0b01000},  // ;
+  {0b00010, 0b00100, 0b01000, 0b10000, 0b01000, 0b00100, 0b00010},  // <
+  {0b00000, 0b00000, 0b11111, 0b00000, 0b11111, 0b00000, 0b00000},  // =
+  {0b01000, 0b00100, 0b00010, 0b00001, 0b00010, 0b00100, 0b01000},  // >
+  {0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b00000, 0b00100},  // ?
+  {0b01110, 0b10001, 0b10111, 0b10101, 0b10111, 0b10000, 0b01110},  // @
+  {0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001},  // A
+  {0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110},  // B
+  {0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110},  // C
+  {0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110},  // D
+  {0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111},  // E
+  {0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000},  // F
+  {0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01111},  // G
+  {0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001},  // H
+  {0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110},  // I
+  {0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100},  // J
+  {0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001},  // K
+  {0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111},  // L
+  {0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001},  // M
+  {0b10001, 0b11001, 0b11001, 0b10101, 0b10011, 0b10011, 0b10001},  // N
+  {0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110},  // O
+  {0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000},  // P
+  {0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101},  // Q
+  {0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001},  // R
+  {0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110},  // S
+  {0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100},  // T
+  {0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110},  // U
+  {0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100},  // V
+  {0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001},  // W
+  {0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001},  // X
+  {0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100},  // Y
+  {0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111},  // Z
 };
 static_assert(sizeof(FONT) / sizeof(FONT[0]) == 'Z' - ' ' + 1, "FONT must cover ' ' to 'Z'");
 
@@ -98,20 +100,28 @@ bool fontPixel(const char* text, int len, int col, int row) {
   if (row < 0 || row >= GLYPH_ROWS || col < 0) return false;
   int index = col / CELL_COLUMNS;
   int cellCol = col % CELL_COLUMNS;
-  if (index >= len || cellCol == CELL_COLUMNS - 1) return false;
-  return (glyph(text[index])[row] >> (2 - cellCol)) & 1;
+  if (index >= len || cellCol >= GLYPH_COLUMNS) return false;
+  return (glyph(text[index])[row] >> (GLYPH_COLUMNS - 1 - cellCol)) & 1;
 }
 
-// Draws text with its left edge at screen x = left, vertically centered.
+// Draws text with its left edge at text-frame x = left, vertically centered.
 // Each LED is either fully on or off (nearest font pixel): the panel has too
 // few LEDs for smoothing, which just fattens the strokes.
+//
+// LED centers sit at half-integer multiples of PIXEL in the tilted text frame,
+// so a font pixel's boundaries must fall on whole multiples of PIXEL: `left`
+// has to be a multiple of PIXEL, and the rows are shifted half a pixel. If an
+// LED sat exactly on a boundary, floating-point noise would decide its pixel.
 void draw(const char* text, int len, float left, CRGB color) {
   for (int i = 0; i < NUM_LEDS; i++) {
     led_matrix::Point2D p = led_matrix::screenPos(i);
 
-    // Font pixel (col, row) covers [col, col+1) x [row, row+1) in these units.
-    int col = (int)floorf((p.x - left) / PIXEL);
-    int row = (int)floorf(GLYPH_ROWS * 0.5f - p.y / PIXEL);
+    // Into the tilted text frame: u runs along the text, v is "up" for the glyphs.
+    float u = p.x * TEXT_COS + p.y * TEXT_SIN;
+    float v = -p.x * TEXT_SIN + p.y * TEXT_COS;
+
+    int col = (int)floorf((u - left) / PIXEL);
+    int row = (int)floorf(GLYPH_ROWS * 0.5f + 0.5f - v / PIXEL);
     if (fontPixel(text, len, col, row)) led_matrix::leds[i] |= color;
   }
 }
@@ -121,7 +131,7 @@ void draw(const char* text, int len, float left, CRGB color) {
 namespace led_text {
 
 namespace {
-Style currentStyle = Style::SMOOTH;
+Style currentStyle = Style::LETTERS;
 }
 
 void setStyle(Style style) {
@@ -142,7 +152,7 @@ bool drawScrolling(const char* text, unsigned long startMs, CRGB color) {
     unsigned long index = elapsed / LETTER_MS;
     if (index >= (unsigned long)len) return true;
     if (elapsed % LETTER_MS < LETTER_MS - LETTER_GAP_MS) {
-      draw(text + index, 1, -1.5f * PIXEL, color);
+      draw(text + index, 1, -3.0f * PIXEL, color);  // 5 columns, centered to within half an LED
     }
     return false;
   }
@@ -152,7 +162,7 @@ bool drawScrolling(const char* text, unsigned long startMs, CRGB color) {
   if (currentStyle == Style::STEPPED) {
     // Whole font pixels: every LED changes on the same frame.
     unsigned long steps = (unsigned long)(elapsed * SCROLL_STEPS_PER_SEC / 1000.0f);
-    left = EDGE - steps * PIXEL;
+    left = ((long)EDGE_COLUMNS - (long)steps) * PIXEL;
   } else {
     left = EDGE - SCROLL_SPEED * elapsed / 1000.0f;
   }
