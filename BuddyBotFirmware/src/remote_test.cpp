@@ -4,12 +4,14 @@
 
 #include "clock_mode.h"
 #include "display_modes.h"
+#include "led_matrix.h"
 #include "messages.h"
 #include "tb_client.h"
 
 namespace {
 
 unsigned long rebootAt = 0;  // 0 = no reboot pending
+bool testRows = false;       // wiring test pattern instead of the current mode
 
 // Every response carries the same snapshot, so the dashboard shows the result.
 void fillState(JsonDocument& response) {
@@ -47,11 +49,21 @@ void onReboot(JsonVariantConst const&, JsonDocument& response) {
   fillState(response);
 }
 
+// RPC "ledTest": params {"on": true|false}. Shows the wiring test pattern until
+// switched off (or the next reboot).
+void onLedTest(JsonVariantConst const& params, JsonDocument& response) {
+  testRows = params["on"] | !testRows;
+  Serial.printf("[RPC] ledTest %d\r\n", (int)testRows);
+  fillState(response);
+  response["ledTest"] = testRows;
+}
+
 const RPC_Callback callbacks[] = {
   RPC_Callback("nextMode", &onNextMode),
   RPC_Callback("clearMessages", &onClearMessages),
   RPC_Callback("addMessage", &onAddMessage),
   RPC_Callback("reboot", &onReboot),
+  RPC_Callback("ledTest", &onLedTest),
 };
 
 }  // namespace
@@ -62,6 +74,12 @@ void begin() {
   if (!tb_client::rpcApi().RPC_Subscribe(std::begin(callbacks), std::end(callbacks))) {
     Serial.println("[RPC] Could not register test RPC methods");
   }
+}
+
+bool render() {
+  if (!testRows) return false;
+  led_matrix::renderTestRows();
+  return true;
 }
 
 void loop() {

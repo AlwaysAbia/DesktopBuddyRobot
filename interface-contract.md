@@ -71,6 +71,7 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
     - `clearMessages`: deletes the stored message history (RAM + NVS `msgs/*`).
     - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars).
     - `reboot`: restarts the device ~1.5 s after responding.
+    - `ledTest`: params `{"on": true|false}` (omit to toggle). Shows a wiring test pattern (rows in different colors, first LED of each row white) instead of the current mode; also adds `"ledTest": <bool>` to the response.
     - All respond `{"mode": "<EYE_ANIMATION|CURRENT_TIME|MESSAGE_HISTORY>", "timeSynced": <bool>, "messages": <0-3>}` (state after the action).
 - OTA package naming convention:
   - Package **Title** = `BuddyBot` (must equal `FIRMWARE_TITLE` in `BuddyBotFirmware/include/ota_config.h`; the device rejects other titles)
@@ -89,3 +90,4 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | B (Stage 2) | 2026-09-28 | Filled in section 3 (ThingsBoard host, profile `BuddyBot`, device `buddybot-01`, token location, `current_fw_*` attributes, OTA package naming). Removed section 4 (pull-OTA manifest), replaced by ThingsBoard OTA. NVS `ota/*` keys now used by ThingsBoard OTA. |
 | C (Phase 2a) | 2026-09-29 | Added NVS keys `msgs/m0`..`msgs/m2` (message history), display mode and eye theme numbering, TEMPORARY test RPCs `nextMode` / `clearMessages` and serial `mode` / `msg clear`. |
 | C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. |
+| C (Phase 2a fixes 2) | 2026-09-29 | TEMPORARY RPC `ledTest`. |

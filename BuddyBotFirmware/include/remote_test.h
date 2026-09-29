@@ -9,6 +9,9 @@ namespace remote_test {
 // Registers the RPC methods. Safe to call before ThingsBoard is connected.
 void begin();
 
+// Draws the wiring test pattern if switched on; returns true if it drew.
+bool render();
+
 // Performs a pending "reboot". Call every loop.
 void loop();
 

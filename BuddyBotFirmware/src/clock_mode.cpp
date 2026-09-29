@@ -15,6 +15,7 @@ namespace {
 
 // Clock face layout, in screen units (panel radius ~0.95).
 constexpr float TICK_RADIUS   = 0.85f;
+constexpr float RING_MIN_RADIUS = 0.78f;  // LEDs at least this far out are the outer ring (inner LEDs are <= 0.72)
 constexpr float HOUR_LENGTH   = 0.45f;
 constexpr float MINUTE_LENGTH = 0.80f;
 constexpr float HAND_STEP     = 0.05f;   // finer than the LED pitch, so no gaps
@@ -23,7 +24,7 @@ const CRGB HOUR_COLOR     = CRGB(255, 110, 0);
 const CRGB MINUTE_COLOR   = CRGB(0, 120, 255);
 const CRGB SECOND_COLOR   = CRGB(150, 0, 150);
 const CRGB TICK_12_COLOR  = CRGB(150, 150, 150);
-const CRGB TICK_COLOR     = CRGB(45, 45, 45);
+const CRGB TICK_COLOR     = CRGB(30, 30, 30);
 const CRGB NO_TIME_COLOR  = CRGB(160, 60, 0);
 
 bool sntpStarted = false;
@@ -86,8 +87,13 @@ void renderFace() {
   float minutes = local.tm_min + seconds / 60.0f;
   float hours   = (local.tm_hour % 12) + minutes / 60.0f;
 
-  // Hour marks: 12 o'clock brightest, then every hour.
-  for (int h = 0; h < 12; h++) drawRingDot(h / 12.0f, h == 0 ? TICK_12_COLOR : TICK_COLOR);
+  // The whole outer ring glows dimly; 12 o'clock is brighter. (Separate hour marks
+  // can't be spaced evenly: the ring has too few LEDs.)
+  for (int i = 0; i < NUM_LEDS; i++) {
+    led_matrix::Point2D p = led_matrix::screenPos(i);
+    if (p.x * p.x + p.y * p.y >= RING_MIN_RADIUS * RING_MIN_RADIUS) led_matrix::leds[i] |= TICK_COLOR;
+  }
+  drawRingDot(0.0f, TICK_12_COLOR);
   drawHand(hours / 12.0f, 0.0f, HOUR_LENGTH, HOUR_COLOR);
   drawHand(minutes / 60.0f, 0.0f, MINUTE_LENGTH, MINUTE_COLOR);
   drawRingDot(floorf(seconds) / 60.0f, SECOND_COLOR);
