@@ -66,6 +66,9 @@ const RPC_Callback callbacks[] = {
   RPC_Callback("ledTest", &onLedTest),
 };
 
+static_assert(sizeof(callbacks) / sizeof(callbacks[0]) <= tb_client::MAX_RPC_METHODS,
+              "more RPC methods than tb_client::MAX_RPC_METHODS: none would register");
+
 }  // namespace
 
 namespace remote_test {
