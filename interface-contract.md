@@ -27,7 +27,7 @@ server) so every session can find it.
 | OTA Check Trigger | `9b370004-a32f-4baf-8406-88e9298fd20d` | Write                           | any payload (even 0 bytes), value ignored |
 | Status            | `9b370005-a32f-4baf-8406-88e9298fd20d` | Read, Notify                    | UTF-8 JSON, see below |
 
-Use Write (with response) only; do not use Write Without Response.
+Use Write (with response) only; do not use Write Without Response. Each characteristic also has a read-only Characteristic User Description (0x2901) with its name from the first column (added in 0.5.1), so generic tools can label them.
 
 **Pairing / security:** "Just Works" (LE Secure Connections, IO capability none): no PIN, no passkey, **no bonding** (keys are not stored on the robot, so the phone may pair again on each connection). Only WiFi Config demands an encrypted link, so the phone shows its pairing prompt the first time the app writes it; everything else works on an unencrypted link. Just Works protects against passive sniffing, not against a man in the middle. Anyone within radio range can change the eye color or mode and start an OTA check; only WiFi Config needs the encrypted link. Compile-time switch: `BLE_WIFI_CONFIG_REQUIRES_ENCRYPTION` in `ble_config.h`.
 
@@ -155,3 +155,4 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. Display: clock and text use an even-pitch LED map, `SCREEN_Y_SIGN` -1, text tilted 45 degrees (`TEXT_ROTATION_DEG`) with a 5x7 font; RPC method/response-field limits raised to 8. |
 | C (close-out) | 2026-09-29 | Recorded the offline requirement (eye at boot without WiFi, BLE mode/color offline, no offline messages, NimBLE) and the decided NVS keys `display/eye_theme` and `time/last` (not implemented yet). |
 | D (Phase 2b) | 2026-09-29 | Defined the BLE GATT service (section 1: service and 5 characteristic UUIDs, payload formats, security, MTU, Status JSON). NVS keys `wifi/ssid`, `wifi/pass`, `display/eye_theme`, `display/mode`, `time/last` implemented. WiFi now connects in the background from NVS credentials (seeded from `secrets.h` on the first-ever boot only). Serial `mode` command removed. |
+| D (0.5.1) | 2026-09-29 | Added a Characteristic User Description (0x2901) to each BLE characteristic. No UUID or payload change. |

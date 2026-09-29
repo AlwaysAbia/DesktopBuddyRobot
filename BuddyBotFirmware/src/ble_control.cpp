@@ -169,6 +169,13 @@ void begin() {
 
   for (NimBLECharacteristic* c : {chrWifi, chrEye, chrMode, chrOta, chrStatus}) c->setCallbacks(&chrCallbacks);
 
+  // Characteristic User Description (0x2901): the name that nRF Connect and similar tools show.
+  const struct { NimBLECharacteristic* chr; const char* name; } names[] = {
+    {chrWifi, "WiFi Config"}, {chrEye, "Eye Color"}, {chrMode, "Mode Select"},
+    {chrOta, "OTA Check Trigger"}, {chrStatus, "Status"},
+  };
+  for (const auto& n : names) n.chr->createDescriptor("2901", NIMBLE_PROPERTY::READ, 24)->setValue(n.name);
+
   chrEye->setValue(eye::theme());
   chrMode->setValue((uint8_t)modes::current());
   char buf[192];
