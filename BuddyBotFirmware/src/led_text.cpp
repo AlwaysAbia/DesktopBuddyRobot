@@ -11,7 +11,7 @@ namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
 constexpr float PIXEL        = 0.19f;  // one font pixel = one LED pitch (text is tilted onto the LED grid)
-constexpr float SCROLL_SPEED = 0.50f;  // units per second (~0.65 character/s)
+constexpr float SCROLL_STEPS_PER_SEC = 3.0f;  // whole font pixels per second (~0.75 character/s)
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
 
 const float TEXT_COS = cosf(TEXT_ROTATION_DEG * (float)M_PI / 180.0f);
@@ -120,7 +120,10 @@ namespace led_text {
 bool drawScrolling(const char* text, unsigned long startMs, CRGB color) {
   int len = strlen(text);
   float width = (len * CELL_COLUMNS - 1) * PIXEL;
-  float left = EDGE - SCROLL_SPEED * (millis() - startMs) / 1000.0f;
+  // Move in whole font pixels so every LED changes on the same frame; a smooth
+  // scroll makes each LED flip at its own moment and tears the letters apart.
+  unsigned long steps = (unsigned long)((millis() - startMs) * SCROLL_STEPS_PER_SEC / 1000.0f);
+  float left = EDGE - steps * PIXEL;
   if (left + width < -EDGE) return true;
   draw(text, len, left, color);
   return false;
