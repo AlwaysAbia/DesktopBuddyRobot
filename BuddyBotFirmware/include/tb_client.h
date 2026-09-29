@@ -4,12 +4,20 @@
 
 #include <Attribute_Request.h>
 #include <OTA_Firmware_Update.h>
+#include <Server_Side_RPC.h>
 #include <ThingsBoard.h>
 
 namespace tb_client {
 
 // Our own shared-attribute request: 1 request in flight, up to 2 keys.
 using AttributeRequestApi = Attribute_Request<1U, 2U>;
+
+// Server-side RPC: up to MAX_RPC_METHODS methods, responses with up to MAX_RPC_FIELDS JSON fields.
+// RPC_Subscribe() fails as a whole (no method works) if given more methods than this, and a
+// response with more fields than MAX_RPC_FIELDS is dropped (the dashboard sees a timeout).
+constexpr size_t MAX_RPC_METHODS = 8U;
+constexpr size_t MAX_RPC_FIELDS  = 8U;
+using RpcApi = Server_Side_RPC<MAX_RPC_METHODS, MAX_RPC_FIELDS>;
 
 // Connect (and reconnect, rate-limited) whenever WiFi is up. Call every loop.
 void loop();
@@ -22,5 +30,8 @@ void onConnected(void (*callback)());
 ThingsBoard& tb();
 OTA_Firmware_Update<>& otaApi();
 AttributeRequestApi& attributeRequestApi();
+
+// Methods subscribed here are re-subscribed by the SDK after every reconnect.
+RpcApi& rpcApi();
 
 }  // namespace tb_client

@@ -2,6 +2,8 @@
 
 A desktop robot with a circular addressable-LED "eye" driven by an ESP32.
 
+The 76-LED display has three modes: the eye animation (default), an analog clock (time from NTP) and a scrolling history of the last 3 messages. The text is tilted 45 degrees so it lines up with the LED grid; rotate the robot about 45 degrees clockwise to read it. Until Bluetooth control exists, modes are switched with the temporary ThingsBoard RPCs listed in [`interface-contract.md`](interface-contract.md).
+
 ## Repository layout
 
 | Folder | Contents | Tool |
