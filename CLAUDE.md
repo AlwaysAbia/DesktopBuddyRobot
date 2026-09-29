@@ -61,6 +61,10 @@ updates from ThingsBoard Cloud. Mobile app and BLE come later.
 - Match the existing style: `[TAG]` log prefixes (`[WiFi]`, `[OTA]`, `[TB]`),
   section banners in `main.cpp`, small modules with a namespace (`ota::`, `tb_client::`).
 
+- Display code: the eye uses `led_matrix::ledCoords` (rows stretched to full width; leave it, the eye looks right). The clock and text use `led_matrix::screenPos()` (true even-pitch disc, orientation in `include/display_config.h`). Text is tilted 45 degrees on purpose; strokes only come out crisp on the LED grid that way.
+- RPC limits live in `tb_client.h` (`MAX_RPC_METHODS`, `MAX_RPC_FIELDS`). Exceeding them makes every RPC time out with no error, so keep the `static_assert` in `remote_test.cpp` in step with them.
+- After every scripted edit, `grep` that the change landed (a silently unmatched `replace` once left the text tilt unapplied for four releases). Backslash escapes (the CR/LF in a printf string) get turned into real line breaks by scripted edits, so make those changes with the Edit tool.
+
 ## Hardware and testing
 
 - Claude has no hardware access. End every firmware change with a numbered manual

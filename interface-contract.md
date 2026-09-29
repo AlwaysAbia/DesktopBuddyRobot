@@ -27,6 +27,8 @@ server) so every session can find it.
 
 Pairing: "just works" (no PIN/bonding).
 
+**Offline requirement (decided 2026-09-29):** the robot must work with no WiFi and no internet. The eye animation runs at boot without waiting for WiFi, and BLE Eye Color and Mode Select must work fully offline (BLE never depends on WiFi or ThingsBoard). There is **no offline messaging**: messages come only from ThingsBoard (Phase 4). BLE should use NimBLE, not Bluedroid (flash: the app is ~1.2 MB of a 1.875 MB OTA slot).
+
 ---
 
 ## 2. NVS Keys (Firmware persistence)
@@ -41,9 +43,15 @@ Pairing: "just works" (no PIN/bonding).
 | `msgs`    | `m1`      | string | Second newest message. |
 | `msgs`    | `m2`      | string | Oldest of the 3 stored messages. A new message shifts `m0`→`m1`→`m2` and drops the old `m2`. |
 
-Known items to persist (fill in exact keys as sessions define them):
+Decided, to be implemented in Session D (not in firmware yet):
+
+| Namespace | Key         | Type | Purpose |
+|-----------|-------------|------|---------|
+| `display` | `eye_theme` | u8   | Last selected eye color (`eye::Theme` number). Written whenever the color changes, read at boot. Until the first write, the boot default (Amber) applies. |
+| `time`    | `last`      | u64  | Last known Unix time (seconds, UTC). Saved after each NTP sync and then periodically. At boot without WiFi the clock starts from it and counts on the ESP32's internal ticks, so it stays roughly right offline. Time while the robot was unpowered is not counted, and internal ticks drift; the next NTP sync corrects both. |
+
+Still to decide (fill in exact keys as sessions define them):
 - Last selected mode
-- Last selected eye color
 - WiFi SSID / password
 
 Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `EYE_ANIMATION`, `1` = `CURRENT_TIME`, `2` = `MESSAGE_HISTORY`. Boot mode is `EYE_ANIMATION` (not persisted yet). Eye color themes (`eye::Theme`): `0` = Cyan, `1` = Amber (boot default), `2` = Emerald, `3` = Magenta.
@@ -89,3 +97,4 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | B (Stage 2) | 2026-09-28 | Filled in section 3 (ThingsBoard host, profile `BuddyBot`, device `buddybot-01`, token location, `current_fw_*` attributes, OTA package naming). Removed section 4 (pull-OTA manifest), replaced by ThingsBoard OTA. NVS `ota/*` keys now used by ThingsBoard OTA. |
 | C (Phase 2a) | 2026-09-29 | Added NVS keys `msgs/m0`..`msgs/m2` (message history), display mode and eye theme numbering, TEMPORARY test RPCs `nextMode` / `clearMessages` and serial `mode` / `msg clear`. |
 | C (Phase 2a fixes) | 2026-09-29 | TEMPORARY RPCs `addMessage` (params `{"text"}`) and `reboot` added for remote testing. Display: clock and text use an even-pitch LED map, `SCREEN_Y_SIGN` -1, text tilted 45 degrees (`TEXT_ROTATION_DEG`) with a 5x7 font; RPC method/response-field limits raised to 8. |
+| C (close-out) | 2026-09-29 | Recorded the offline requirement (eye at boot without WiFi, BLE mode/color offline, no offline messages, NimBLE) and the decided NVS keys `display/eye_theme` and `time/last` (not implemented yet). |
