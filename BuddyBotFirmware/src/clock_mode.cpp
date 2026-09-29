@@ -15,16 +15,15 @@ namespace {
 
 // Clock face layout, in screen units (panel radius ~0.95).
 constexpr float TICK_RADIUS   = 0.90f;
-constexpr float HOUR_LENGTH   = 0.50f;
-constexpr float HOUR_WIDTH    = 0.20f;
+constexpr float HOUR_LENGTH   = 0.45f;
 constexpr float MINUTE_LENGTH = 0.85f;
-constexpr float MINUTE_WIDTH  = 0.16f;
+constexpr float HAND_STEP     = 0.10f;   // finer than the LED pitch, so no gaps
 
 const CRGB HOUR_COLOR     = CRGB(255, 140, 0);
 const CRGB MINUTE_COLOR   = CRGB(120, 200, 255);
-const CRGB SECOND_COLOR   = CRGB(40, 40, 40);
-const CRGB TICK_12_COLOR  = CRGB(90, 90, 90);
-const CRGB TICK_COLOR     = CRGB(25, 25, 25);
+const CRGB SECOND_COLOR   = CRGB(0, 120, 0);
+const CRGB TICK_12_COLOR  = CRGB(150, 150, 150);
+const CRGB TICK_COLOR     = CRGB(45, 45, 45);
 const CRGB NO_TIME_COLOR  = CRGB(160, 60, 0);
 
 bool sntpStarted = false;
@@ -60,31 +59,21 @@ void ringPoint(float turn, float radius, float& x, float& y) {
   y = cosf(a) * radius;
 }
 
-void addToLed(int i, CRGB color, float intensity) {
-  if (intensity <= 0.0f) return;
-  if (intensity > 1.0f) intensity = 1.0f;
-  color.nscale8((uint8_t)(intensity * 255.0f));
-  led_matrix::leds[i] |= color;
-}
-
-// A line from the center, fading out over `width` from its axis.
-void drawHand(float turn, float length, float width, CRGB color) {
-  float dx, dy;
-  ringPoint(turn, 1.0f, dx, dy);
-  for (int i = 0; i < NUM_LEDS; i++) {
-    led_matrix::Point2D p = led_matrix::screenPos(i);
-    float along = p.x * dx + p.y * dy;
-    along = constrain(along, 0.0f, length);
-    float ex = p.x - along * dx;
-    float ey = p.y - along * dy;
-    addToLed(i, color, 1.0f - sqrtf(ex * ex + ey * ey) / width);
+// A hand is a chain of single LEDs: step along the hand and light the LED
+// nearest each point. Crisp and connected; the panel is too sparse for
+// anti-aliased lines (they came out as an unreadable glow).
+void drawHand(float turn, float from, float to, CRGB color) {
+  for (float r = from; r <= to; r += HAND_STEP) {
+    float x, y;
+    ringPoint(turn, r, x, y);
+    led_matrix::leds[nearestLed(x, y)] |= color;
   }
 }
 
 void drawRingDot(float turn, CRGB color) {
   float x, y;
   ringPoint(turn, TICK_RADIUS, x, y);
-  addToLed(nearestLed(x, y), color, 1.0f);
+  led_matrix::leds[nearestLed(x, y)] |= color;
 }
 
 void renderFace() {
@@ -97,9 +86,10 @@ void renderFace() {
   float minutes = local.tm_min + seconds / 60.0f;
   float hours   = (local.tm_hour % 12) + minutes / 60.0f;
 
-  for (int h = 0; h < 12; h += 3) drawRingDot(h / 12.0f, h == 0 ? TICK_12_COLOR : TICK_COLOR);
-  drawHand(hours / 12.0f, HOUR_LENGTH, HOUR_WIDTH, HOUR_COLOR);
-  drawHand(minutes / 60.0f, MINUTE_LENGTH, MINUTE_WIDTH, MINUTE_COLOR);
+  // Hour marks: 12 o'clock brightest, then every hour.
+  for (int h = 0; h < 12; h++) drawRingDot(h / 12.0f, h == 0 ? TICK_12_COLOR : TICK_COLOR);
+  drawHand(hours / 12.0f, 0.0f, HOUR_LENGTH, HOUR_COLOR);
+  drawHand(minutes / 60.0f, 0.0f, MINUTE_LENGTH, MINUTE_COLOR);
   drawRingDot(floorf(seconds) / 60.0f, SECOND_COLOR);
 }
 

@@ -9,8 +9,8 @@
 namespace {
 
 // Font pixel size and scroll speed, in screen units (panel radius ~0.95).
-constexpr float PIXEL        = 0.20f;
-constexpr float SCROLL_SPEED = 0.80f;  // units per second (~1 character/s)
+constexpr float PIXEL        = 0.30f;  // ~1.5 LED pitch: thin strokes need more than one LED per font pixel
+constexpr float SCROLL_SPEED = 0.60f;  // units per second (~0.5 character/s)
 constexpr float EDGE         = 1.0f;   // text enters at +EDGE, leaves at -EDGE
 
 constexpr int GLYPH_ROWS    = 5;
@@ -87,37 +87,25 @@ const uint8_t* glyph(char c) {
 }
 
 // 1 if font pixel (col, row) of the whole string is lit.
-float fontPixel(const char* text, int len, int col, int row) {
-  if (row < 0 || row >= GLYPH_ROWS || col < 0) return 0.0f;
+bool fontPixel(const char* text, int len, int col, int row) {
+  if (row < 0 || row >= GLYPH_ROWS || col < 0) return false;
   int index = col / CELL_COLUMNS;
   int cellCol = col % CELL_COLUMNS;
-  if (index >= len || cellCol == CELL_COLUMNS - 1) return 0.0f;
-  return (glyph(text[index])[row] >> (2 - cellCol)) & 1 ? 1.0f : 0.0f;
+  if (index >= len || cellCol == CELL_COLUMNS - 1) return false;
+  return (glyph(text[index])[row] >> (2 - cellCol)) & 1;
 }
 
 // Draws text with its left edge at screen x = left, vertically centered.
+// Each LED is either fully on or off (nearest font pixel): the panel has too
+// few LEDs for smoothing, which just fattens the strokes.
 void draw(const char* text, int len, float left, CRGB color) {
   for (int i = 0; i < NUM_LEDS; i++) {
     led_matrix::Point2D p = led_matrix::screenPos(i);
 
-    // Position in font pixels; pixel (c, r) has its center at (c + 0.5, r + 0.5).
-    float u = (p.x - left) / PIXEL - 0.5f;
-    float v = (GLYPH_ROWS * 0.5f) - p.y / PIXEL - 0.5f;
-    if (u < -1.0f || u > len * CELL_COLUMNS || v < -1.0f || v > GLYPH_ROWS) continue;
-
-    int c0 = (int)floorf(u);
-    int r0 = (int)floorf(v);
-    float fu = u - c0;
-    float fv = v - r0;
-    float value = fontPixel(text, len, c0,     r0)     * (1 - fu) * (1 - fv)
-                + fontPixel(text, len, c0 + 1, r0)     * fu       * (1 - fv)
-                + fontPixel(text, len, c0,     r0 + 1) * (1 - fu) * fv
-                + fontPixel(text, len, c0 + 1, r0 + 1) * fu       * fv;
-    if (value < 0.05f) continue;
-
-    CRGB lit = color;
-    lit.nscale8((uint8_t)(value * 255.0f));
-    led_matrix::leds[i] |= lit;
+    // Font pixel (col, row) covers [col, col+1) x [row, row+1) in these units.
+    int col = (int)floorf((p.x - left) / PIXEL);
+    int row = (int)floorf(GLYPH_ROWS * 0.5f - p.y / PIXEL);
+    if (fontPixel(text, len, col, row)) led_matrix::leds[i] |= color;
   }
 }
 

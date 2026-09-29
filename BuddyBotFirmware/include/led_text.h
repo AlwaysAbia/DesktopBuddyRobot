@@ -1,6 +1,7 @@
 // Scrolling text on the round LED panel: a 3x5 pixel font sampled at each
-// LED's screen position (bilinear, so it moves smoothly across the sparse,
-// diagonal LED grid). Lowercase prints as uppercase; unknown characters as '?'.
+// LED's screen position (nearest pixel, no smoothing: the sparse, diagonal
+// LED grid only stays legible with crisp on/off pixels). Lowercase prints as
+// uppercase; unknown characters as '?'.
 #pragma once
 
 #include <FastLED.h>

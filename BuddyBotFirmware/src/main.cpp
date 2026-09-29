@@ -190,6 +190,7 @@ void loop() {
   tb_client::loop();
   ota::loop();
   clock_mode::loop();  // starts NTP once WiFi is up
+  remote_test::loop();
   handleSerialCommands();
 
   // While a ThingsBoard firmware download is running, keep the eye dark
