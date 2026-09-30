@@ -98,19 +98,17 @@ updates from ThingsBoard Cloud, BLE control (NimBLE), Flutter companion app.
 ## Continue here: Flutter app (Session E)
 
 State when the last session ended (2026-09-30):
-- Branch `app/flutter` (rebased on `main`) holds `BuddyBotApp/`: scan, WiFi setup and control screens,
-  auto-reconnect, all written against `interface-contract.md` section 1. **It has never been compiled or run.**
-  Flutter was only just installed (from VS Code) and its SDK path was not found; ask the user for the path
-  (VS Code: "Flutter: Run Flutter Doctor" prints it) and call `flutter` by full path like `pio`.
-- Next steps, in order:
-  1. `cd BuddyBotApp`, follow its README "One-time setup" (`flutter create --platforms=android,ios
-     --org com.buddybot --project-name buddybot_app .`, check `git status` that `lib/`, `test/` and
-     `pubspec.yaml` were not overwritten, add the Android and iOS Bluetooth permissions).
-  2. `flutter pub get`, `flutter analyze`, `flutter test`; fix what the compiler finds (`flutter_blue_plus`
-     is pinned `^1.35.0` and unchecked).
-  3. Commit the generated `android/` and `ios/`, then give the user the 12-step manual test plan again
-     (real Android and iOS phones; check results on the ThingsBoard dashboard: `mode`, `eye_color`,
-     `msg_*`, `wifi` via the device's connection).
+- Branch `app/flutter` holds `BuddyBotApp/` (scan, WiFi setup, control, auto-reconnect, written against
+  `interface-contract.md` section 1). `android/` and `ios/` are generated and committed with the BLE
+  permissions. `flutter analyze` is clean, `flutter test` passes (11 contract tests) and
+  `flutter build apk --debug` succeeds. **It has never been run on a phone.**
+- Toolchain: Flutter at `C:\Users\User\MyPrograms\Flutter\flutter\bin` (on the user's PATH but not in
+  Claude's shell: `export PATH="$PATH:/c/Users/User/MyPrograms/Flutter/flutter/bin"`). Android SDK in
+  `%LOCALAPPDATA%\Android\Sdk`. `flutter doctor` still warns that cmdline-tools are missing (harmless for builds).
+  iOS cannot be built on this Windows machine.
+- Next: the user installs the debug APK on a real Android phone and runs the 12-step manual test plan
+  (check `mode`, `eye_color`, `msg_*`, `wifi` on the ThingsBoard dashboard), then merge `app/flutter` into
+  `main` when the user says so.
 - Least certain in the app (verify on hardware first): WiFi result detection (relies on seeing Status
   `connecting`), the pairing prompt on the first WiFi Config write (retried once), reconnect and
   resubscribe after a drop, MTU handling.
