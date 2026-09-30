@@ -94,3 +94,27 @@ updates from ThingsBoard Cloud, BLE control (NimBLE), Flutter companion app.
 - The buzzer never sounded during bring-up; its pin is unconfirmed and the self-test
   is disabled (`BUZZER_SELFTEST 0`). Don't build features that depend on it
   until the user confirms the hardware.
+
+## Continue here: Flutter app (Session E)
+
+State when the last session ended (2026-09-30):
+- Branch `app/flutter` (rebased on `main`) holds `BuddyBotApp/`: scan, WiFi setup and control screens,
+  auto-reconnect, all written against `interface-contract.md` section 1. **It has never been compiled or run.**
+  Flutter was only just installed (from VS Code) and its SDK path was not found; ask the user for the path
+  (VS Code: "Flutter: Run Flutter Doctor" prints it) and call `flutter` by full path like `pio`.
+- Next steps, in order:
+  1. `cd BuddyBotApp`, follow its README "One-time setup" (`flutter create --platforms=android,ios
+     --org com.buddybot --project-name buddybot_app .`, check `git status` that `lib/`, `test/` and
+     `pubspec.yaml` were not overwritten, add the Android and iOS Bluetooth permissions).
+  2. `flutter pub get`, `flutter analyze`, `flutter test`; fix what the compiler finds (`flutter_blue_plus`
+     is pinned `^1.35.0` and unchecked).
+  3. Commit the generated `android/` and `ios/`, then give the user the 12-step manual test plan again
+     (real Android and iOS phones; check results on the ThingsBoard dashboard: `mode`, `eye_color`,
+     `msg_*`, `wifi` via the device's connection).
+- Least certain in the app (verify on hardware first): WiFi result detection (relies on seeing Status
+  `connecting`), the pairing prompt on the first WiFi Config write (retried once), reconnect and
+  resubscribe after a drop, MTU handling.
+- `firmware/version-0.6.3` (a version bump to match the robot) is committed but not merged into `main`;
+  merge it when the user says so. The robot runs 0.6.3; 0.6.2 is flagged bad in its NVS (harmless).
+- Messages reach the robot only through the ThingsBoard RPCs `addMessage` etc. (kept on purpose); the app
+  never sends messages.
