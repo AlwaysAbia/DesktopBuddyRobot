@@ -1,9 +1,10 @@
 # DesktopBuddyRobot
 
 ESP32 desktop robot: FastLED eye animation (76 WS2812B LEDs), WiFi, OTA
-updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
+updates from ThingsBoard Cloud, BLE control (NimBLE), Flutter companion app.
 
 - `BuddyBotFirmware/`: PlatformIO project (arduino-esp32 3.2.0 via pioarduino)
+- `BuddyBotApp/`: Flutter app (Android + iOS), BLE only. Setup in its README
 - `BuddyRobotDisplay/`: Altium PCB
 - `BuddyRobot3DModel/`: Inventor CAD
 - `interface-contract.md`: every firmware / app / server interface
@@ -11,7 +12,7 @@ updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
 ## Git workflow
 
 - Before starting, check `git status` is clean and `main` is in sync with `origin/main`.
-- Work on a branch: `firmware/<topic>` (or `docs/<topic>`). Commit there.
+- Work on a branch: `firmware/<topic>`, `app/<topic>` or `docs/<topic>`. Commit there.
 - When the user says so: merge into `main` with `--no-ff`, push, delete the branch.
 - Don't commit local test changes (e.g. a temporary `FIRMWARE_VERSION` bump or `OTA_TEST_CRASH_BEFORE_VALID 1`). Stash them around merges if needed.
 
