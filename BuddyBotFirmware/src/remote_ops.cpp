@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include "display_modes.h"
+#include "eye_mode.h"
+#include "messages.h"
 #include "ota_update.h"
 #include "tb_client.h"
 
@@ -38,6 +41,13 @@ bool wasConnected = false;
 unsigned long lastTelemetry = 0, lastAttrCheck = 0;
 String lastAttrKey;  // fingerprint of the attributes last sent
 
+const char* EYE_NAMES[] = {"Cyan", "Amber", "Emerald", "Magenta"};
+
+const char* eyeName() {
+  uint8_t t = eye::theme();
+  return t < eye::THEME_COUNT ? EYE_NAMES[t] : "?";
+}
+
 const char* orDash(const String& s) {
   return s.isEmpty() ? "-" : s.c_str();
 }
@@ -50,11 +60,14 @@ void sendTelemetry() {
   tb.sendTelemetryData("heap_min_kb", (uint32_t)(ESP.getMinFreeHeap() / 1024));
 }
 
-// Sends the OTA attributes when they differ from what was last sent (or force = true).
+// Sends the attributes when they differ from what was last sent (or force = true).
 void sendAttributes(bool force) {
   ota::Info info = ota::info();
+  const char* mode = modes::name(modes::current());
+  const char* latest = messages::count() > 0 ? messages::get(0) : "";
   String key = String(info.partition) + '|' + info.imageState + '|' + info.rollbackPossible + '|' +
-               info.awaitingConfirm + '|' + info.badVersion + '|' + info.lastError;
+               info.awaitingConfirm + '|' + info.badVersion + '|' + info.lastError + '|' + mode + '|' +
+               eyeName() + '|' + messages::count() + '|' + latest;
   if (!force && key == lastAttrKey) return;
   lastAttrKey = key;
 
@@ -65,6 +78,10 @@ void sendAttributes(bool force) {
   tb.sendAttributeData("ota_awaiting_confirm", info.awaitingConfirm);
   tb.sendAttributeData("ota_bad_version", orDash(info.badVersion));
   tb.sendAttributeData("ota_last_error", orDash(info.lastError));
+  tb.sendAttributeData("mode", mode);
+  tb.sendAttributeData("eye_color", eyeName());
+  tb.sendAttributeData("msg_count", (uint32_t)messages::count());
+  tb.sendAttributeData("msg_latest", latest[0] ? latest : "-");
 }
 
 }  // namespace

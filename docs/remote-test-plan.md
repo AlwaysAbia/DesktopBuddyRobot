@@ -4,42 +4,36 @@ For firmware 0.6.0 and later. No serial, no USB. Device: `buddybot-01`. RPCs are
 dashboard RPC widget or the device's "RPC" tab (two-way). Keys are in
 [../interface-contract.md](../interface-contract.md), section 3.
 
-## A. Status reporting
+Done and confirmed on the robot (2026-09-30): status attributes and telemetry (0.6.0), the
+`checkForUpdate` RPC, and the update itself.
 
-1. After the robot connects, check **Attributes → Client**: `ota_partition`, `ota_image_state`,
-   `ota_rollback_possible`, `ota_awaiting_confirm`, `ota_bad_version`, `ota_last_error`,
-   `current_fw_version`. Expect `ota_image_state` = `VALID` (or `n/a` after a USB flash), `ota_awaiting_confirm` = false.
-2. **Latest telemetry** shows `rssi`, `uptime_s`, `heap_free_kb`, `heap_min_kb`, refreshed about every 60 s.
-   `uptime_s` should rise by about 60 between refreshes.
-3. Send RPC `reboot` (temporary RPC). Within about a minute `uptime_s` restarts near 0 and the attributes reappear.
+## Still to test
 
-## B. Remote update trigger
+### 1. Mode, eye color and messages as attributes (0.6.1)
 
-Prerequisite: a package with a higher version than the running one is assigned to the device.
+Prerequisite: 0.6.1 installed (`checkForUpdate` with 0.6.1 assigned).
 
-4. Send RPC `checkForUpdate` with params `{}`. Response: `{"accepted": true, "force": false}`.
-5. Watch `fw_state`: `DOWNLOADING` → `DOWNLOADED` → `UPDATING`. The robot reboots, reconnects, and
-   `current_fw_version` shows the new version, `fw_state` = `UPDATED`.
-6. Send `checkForUpdate` twice quickly. The second response should be `accepted: false`.
-7. With the same version already assigned, `checkForUpdate` leaves `fw_state` = `UPDATED` and nothing reinstalls.
-8. Params `{"force": true}` retries a version listed in `ota_bad_version`.
+1. **Attributes → Client** shows `mode`, `eye_color`, `msg_count`, `msg_latest`.
+2. Send RPC `nextMode`. Within about 5 s `mode` follows (`EYE_ANIMATION` → `CURRENT_TIME` → `MESSAGE_HISTORY`).
+3. Send RPC `addMessage` with `{"text": "hello"}`. `msg_count` goes up (max 3), `msg_latest` = `hello`.
+4. Send RPC `clearMessages`. `msg_count` = 0, `msg_latest` = `-`.
+5. Once the phone app exists: change the eye color over BLE and check `eye_color` follows.
+6. After `reboot`, the four values match what they were before the reboot.
 
-## C. Confirm only after connecting
+### 2. Confirm only after connecting
 
-9. Right after step 5's reboot, `ota_awaiting_confirm` may briefly be true and `ota_image_state`
+7. Right after an update reboot, `ota_awaiting_confirm` may briefly be true and `ota_image_state`
    `PENDING_VERIFY`; within seconds of the first connect they change to false / `VALID`.
-10. **Timeout rollback** (needs a special build): set `OTA_TEST_SKIP_CONFIRM 1`, bump the version above
-    the one on the robot, build, upload and assign it (do not commit this change). After the update,
-    `ota_awaiting_confirm` stays true for about 5 minutes although the robot is online, then the robot
-    reboots into the old version. Expect: `current_fw_version` back to the old one, `fw_state` = `FAILED`,
-    `ota_bad_version` = the test version, `ota_last_error` mentions the rollback. `checkForUpdate` without
-    `force` must not reinstall it.
-11. Then upload a normal build with a higher version and check it installs and reaches `VALID`.
+8. **Timeout rollback** (needs a special build): set `OTA_TEST_SKIP_CONFIRM 1`, bump the version above
+   the one on the robot, build, upload and assign it (do not commit this change). After the update,
+   `ota_awaiting_confirm` stays true for about 5 minutes although the robot is online, then the robot
+   reboots into the old version. Expect: `current_fw_version` back to the old one, `fw_state` = `FAILED`,
+   `ota_bad_version` = the test version, `ota_last_error` mentions the rollback. `checkForUpdate` without
+   `force` must not reinstall it. `checkForUpdate` with `{"force": true}` does.
+9. Then upload a normal build with a higher version and check it installs and reaches `VALID`.
 
-## D. Safety notes
+## Safety notes
 
-- The very first install of 0.6.0 goes through 0.5.2's OTA path, which is unchanged. Keep USB access
-  available for that one update in case something unexpected happens.
-- A broken WiFi or ThingsBoard connection in a new build now causes a rollback after 5 minutes;
+- A broken WiFi or ThingsBoard connection in a new build causes a rollback after 5 minutes;
   a router that is off for more than 5 minutes right after an update also causes one (the version is
   then flagged bad and needs a higher version number).
