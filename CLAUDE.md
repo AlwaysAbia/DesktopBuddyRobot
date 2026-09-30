@@ -106,6 +106,8 @@ State when the last session ended (2026-09-30):
   Claude's shell: `export PATH="$PATH:/c/Users/User/MyPrograms/Flutter/flutter/bin"`). Android SDK in
   `%LOCALAPPDATA%\Android\Sdk`. `flutter doctor` still warns that cmdline-tools are missing (harmless for builds).
   iOS cannot be built on this Windows machine.
+- `app/flutter` is pushed to `origin` and deliberately **not merged into `main`**: the user tests at home first.
+  Session F starts from the user's test results (fix what broke on `app/flutter`), then merges only when told to.
 - Next: the user installs the debug APK on a real Android phone and runs the 12-step manual test plan
   (check `mode`, `eye_color`, `msg_*`, `wifi` on the ThingsBoard dashboard), then merge `app/flutter` into
   `main` when the user says so.
