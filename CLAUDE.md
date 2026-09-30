@@ -51,14 +51,15 @@ updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
   Always use a version higher than what's on the device.
 - Rollback safety must be kept in every OTA change:
   - `verifyRollbackLater()` is overridden to return true.
-  - `ota::confirmRunningFirmware()` runs early in `setup()`.
+  - `ota::confirmRunningFirmware()` runs early in `setup()`; it defers marking a new image valid until the
+    first ThingsBoard connect (`onTbConnected`), and `ota::loop()` rolls back after `OTA_CONFIRM_TIMEOUT_S`.
   - NVS `ota/pending` / `ota/bad` stop a rolled-back version from being retried.
   - An interrupted download (reboot, RPC, power loss) also flags that version `bad`. The only fix without
     serial is a new version string, so re-upload the same build with a higher `FIRMWARE_VERSION`.
 - The robot has a BLE GATT server (`ble_control`) and background WiFi from NVS (`wifi_manager`). BLE
   layout and how to test with nRF Connect (request MTU 247): `interface-contract.md`, `docs/ble-basics.md`.
-- Update checks are manual (boot check + serial `ota` / `ota force` / `status`).
-  The BLE OTA-check characteristic already calls `ota::requestCheck()`.
+- Update checks are manual: boot check, serial `ota` / `ota force` / `status`, the BLE OTA-check
+  characteristic and the ThingsBoard RPC `checkForUpdate` all call `ota::requestCheck()`.
 
 ## Code conventions
 
@@ -82,26 +83,13 @@ updates from ThingsBoard Cloud, BLE control (NimBLE). Mobile app comes later.
     connection. Rollback is the only safety net, so keep it intact and don't ship
     anything that weakens it.
 
-## Open work: remote operation
+## Remote operation
 
-Do these before other features, in this order. Remove each item once it's done.
-
-1. **Remote update trigger.** Checks currently start only at boot or via serial `ota`.
-   Add a ThingsBoard RPC (e.g. `checkForUpdate`, optional `force`) that calls
-   `ota::requestCheck()`, or switch to the SDK's `Subscribe_Firmware_Update` so an
-   assigned package installs automatically. Ask the user which one.
-2. **Remote status.** Report what serial `status` prints (running partition, rollback
-   state, bad version, last OTA error, RSSI, uptime) as ThingsBoard client attributes
-   and telemetry.
-3. **Confirm only after connecting.** `ota::confirmRunningFirmware()` marks a new image
-   valid early in `setup()`, before WiFi, so a build that breaks connectivity would
-   stay installed. Move `esp_ota_mark_app_valid_cancel_rollback()` to after the first
-   successful ThingsBoard connect, with a timeout (a few minutes) that calls
-   `esp_ota_mark_app_invalid_rollback_and_reboot()`. Keep the early-boot crash
-   protection. Tell the user to keep USB nearby for the one OTA that installs this change.
-4. **Test plans.** Once 1–3 exist, all testing is done from the ThingsBoard dashboard.
-
-Put any new RPC methods and attribute keys in `interface-contract.md`.
+- Everything is testable from the ThingsBoard dashboard: RPC `checkForUpdate` (optional `force`), client
+  attributes `ota_*`, telemetry `rssi` / `uptime_s` / `heap_*` / `fw_state` (keys in `interface-contract.md`).
+  Write test plans against those, never serial.
+- A new OTA image is confirmed only after its first ThingsBoard connection (`OTA_CONFIRM_TIMEOUT_S`, then
+  rollback). Keep that intact in every OTA change.
 - The buzzer never sounded during bring-up; its pin is unconfirmed and the self-test
   is disabled (`BUZZER_SELFTEST 0`). Don't build features that depend on it
   until the user confirms the hardware.

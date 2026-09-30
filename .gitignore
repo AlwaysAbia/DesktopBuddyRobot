@@ -37,3 +37,6 @@ desktop.ini
 *.log
 *.mp4
 *.mov
+
+# Exported CAD part models (kept locally only)
+BuddyRobot3DModel/PartModels/

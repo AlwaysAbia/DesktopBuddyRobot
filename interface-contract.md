@@ -128,9 +128,14 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
   - Firmware version reported as: client attributes `current_fw_title` / `current_fw_version`, sent on every (re)connect. The same two keys are also sent as telemetry, because ThingsBoard's OTA dashboard reads them from there.
   - OTA state reported as telemetry `fw_state` (`DOWNLOADING` → `DOWNLOADED` → `UPDATING` → `UPDATED`, or `FAILED`) plus `fw_error`. `UPDATED` / `FAILED` (for a rollback) is sent after the reboot, on the first connect.
   - OTA-availability push attribute: none of our own. ThingsBoard sets the shared attributes `fw_title`, `fw_version`, `fw_size`, `fw_checksum`, `fw_checksum_algorithm` when a package is assigned. The device reads them only when a check runs (boot or serial `ota`), so it does not auto-update on assignment yet.
+- Device status (firmware 0.6.0, `BuddyBotFirmware/src/remote_ops.cpp`), sent on every (re)connect:
+  - Client attributes, resent whenever they change (checked every 5 s): `ota_partition` (running slot, `app0`/`app1`), `ota_image_state` (`NEW`, `PENDING_VERIFY`, `VALID`, `INVALID`, `ABORTED`, `UNDEFINED`, `n/a`), `ota_rollback_possible` (bool), `ota_awaiting_confirm` (bool, true while a new image has not yet connected to ThingsBoard), `ota_bad_version` (`-` = none), `ota_last_error` (`-` = none; cleared by a successful update).
+  - Also client attributes (0.6.1): `mode` (`EYE_ANIMATION`, `CURRENT_TIME`, `MESSAGE_HISTORY`), `eye_color` (`Cyan`, `Amber`, `Emerald`, `Magenta`), `msg_count` (0-3), `msg_latest` (newest stored message, `-` = none).
+  - Telemetry, every 60 s: `rssi` (dBm), `uptime_s`, `heap_free_kb`, `heap_min_kb`.
+- Rollback confirmation (0.6.0): a freshly OTA-installed image is **not** marked valid at boot. It is confirmed at the first successful ThingsBoard connection (`ota_image_state` goes `PENDING_VERIFY` → `VALID`). If that does not happen within `OTA_CONFIRM_TIMEOUT_S` (300 s) of boot, or the robot resets first, the bootloader rolls back to the previous firmware and the failed version is flagged `ota/bad`.
 - RPC methods:
-  - Incoming message method name: `TBD` (parameter format: `TBD`)
-  - **TEMPORARY** test RPCs (`BuddyBotFirmware/src/remote_test.cpp`), two-way (`nextMode`, `clearMessages`, `reboot` take no params). They'll be removed when BLE mode control and Phase 4 messaging replace them:
+  - `checkForUpdate` (0.6.0, permanent): params `{"force": true}` (optional; a plain `true` also works). Same as serial `ota` / `ota force`. Responds `{"accepted": <bool>, "force": <bool>}`; `accepted: false` means a check or update was already running. Progress is the `fw_state` telemetry.
+  - Kept on purpose (decided 2026-09-30): these RPCs (`BuddyBotFirmware/src/remote_test.cpp`, still named "test" in the code) are the way messages reach the robot, so there is no separate messaging method. Two-way (`nextMode`, `clearMessages`, `reboot` take no params):
     - `nextMode`: switches to the next display mode.
     - `clearMessages`: deletes the stored message history (RAM + NVS `msgs/*`).
     - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars). CR / LF characters are removed; a message that is empty after that is ignored.
@@ -141,7 +146,7 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
   - Package **Version** = `FIRMWARE_VERSION` of the build, `MAJOR.MINOR.PATCH`
   - Package type Firmware, device profile `BuddyBot`, binary = `BuddyBotFirmware/.pio/build/esp32dev/firmware.bin`, checksum MD5 or SHA-256 (auto-generated is fine)
   - Install rule: installs the assigned version if it differs from the running one (downgrades allowed), unless it is the NVS `ota/bad` version
-- Serial commands (115200 baud): `ota`, `ota force`, `status`, plus TEMPORARY `msg clear` (same as the RPC above). The serial `mode` command was removed in 0.5.0: the app switches modes over BLE. The TEMPORARY RPC `nextMode` stays for remote testing
+- Serial commands (115200 baud): `ota`, `ota force`, `status`, plus `msg clear` (same as the RPC above). The serial `mode` command was removed in 0.5.0: the app switches modes over BLE. The RPC `nextMode` stays
 
 ---
 
@@ -156,3 +161,5 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 | C (close-out) | 2026-09-29 | Recorded the offline requirement (eye at boot without WiFi, BLE mode/color offline, no offline messages, NimBLE) and the decided NVS keys `display/eye_theme` and `time/last` (not implemented yet). |
 | D (Phase 2b) | 2026-09-29 | Defined the BLE GATT service (section 1: service and 5 characteristic UUIDs, payload formats, security, MTU, Status JSON). NVS keys `wifi/ssid`, `wifi/pass`, `display/eye_theme`, `display/mode`, `time/last` implemented. WiFi now connects in the background from NVS credentials (seeded from `secrets.h` on the first-ever boot only). Serial `mode` command removed. |
 | D (0.5.1) | 2026-09-29 | Added a Characteristic User Description (0x2901) to each BLE characteristic. No UUID or payload change. |
+| Remote operation | 2026-09-30 | Firmware 0.6.0: RPC `checkForUpdate`, client attributes `ota_*` and telemetry `rssi` / `uptime_s` / `heap_*` (section 3), and rollback confirmation moved to the first ThingsBoard connection with a 300 s timeout. No BLE change. |
+| Remote operation (0.6.1) | 2026-09-30 | Client attributes `mode`, `eye_color`, `msg_count`, `msg_latest` (section 3). |

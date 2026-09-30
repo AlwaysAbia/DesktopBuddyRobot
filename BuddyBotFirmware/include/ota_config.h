@@ -10,7 +10,7 @@
 // Version of THIS build. The device installs whatever package version is
 // assigned to it in ThingsBoard if it differs from this (downgrades included),
 // unless that version previously failed to boot (see interface-contract.md).
-#define FIRMWARE_VERSION "0.5.2"
+#define FIRMWARE_VERSION "0.6.1"
 
 // 1 = run one update check as soon as the ThingsBoard connection is up after boot.
 // A check can always be started manually with the serial command "ota".
@@ -21,3 +21,15 @@
 // previous firmware. Has no effect on USB-flashed or already-confirmed images.
 // Never ship a build with this set.
 #define OTA_TEST_CRASH_BEFORE_VALID 0
+
+// A freshly OTA-installed image is only kept once it has connected to ThingsBoard
+// (proof that WiFi, TLS and the token work). If that has not happened this many
+// seconds after boot, the bootloader is told to roll back to the previous firmware.
+// Too short: a slow router at boot causes a false rollback (that version is then
+// flagged bad). Too long: a build that broke connectivity stays offline longer.
+#define OTA_CONFIRM_TIMEOUT_S 300
+
+// TEST ONLY. 1 = a freshly OTA-installed image never confirms itself, so after
+// OTA_CONFIRM_TIMEOUT_S it rolls back although ThingsBoard is reachable. Lets you
+// watch the timeout rollback from the dashboard. Never ship a build with this set.
+#define OTA_TEST_SKIP_CONFIRM 0

@@ -9,6 +9,7 @@
 #include "messages.h"
 #include "ota_config.h"
 #include "ota_update.h"
+#include "remote_ops.h"
 #include "remote_test.h"
 #include "tb_client.h"
 #include "wifi_manager.h"
@@ -117,6 +118,7 @@ void setup() {
 
   // ThingsBoard connects from loop(); the boot check waits for it.
   ota::begin();
+  remote_ops::begin();   // checkForUpdate RPC, status reporting
   remote_test::begin();  // TEMPORARY mode/message test RPCs
 #if OTA_CHECK_ON_BOOT
   ota::requestCheck(false);
@@ -130,6 +132,7 @@ void loop() {
   // ThingsBoard connection + OTA check
   tb_client::loop();
   ota::loop();
+  remote_ops::loop();
   clock_mode::loop();  // starts NTP once WiFi is up
   remote_test::loop();
   handleSerialCommands();
