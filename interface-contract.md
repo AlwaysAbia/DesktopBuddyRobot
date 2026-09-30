@@ -135,8 +135,7 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
 - Rollback confirmation (0.6.0): a freshly OTA-installed image is **not** marked valid at boot. It is confirmed at the first successful ThingsBoard connection (`ota_image_state` goes `PENDING_VERIFY` → `VALID`). If that does not happen within `OTA_CONFIRM_TIMEOUT_S` (300 s) of boot, or the robot resets first, the bootloader rolls back to the previous firmware and the failed version is flagged `ota/bad`.
 - RPC methods:
   - `checkForUpdate` (0.6.0, permanent): params `{"force": true}` (optional; a plain `true` also works). Same as serial `ota` / `ota force`. Responds `{"accepted": <bool>, "force": <bool>}`; `accepted: false` means a check or update was already running. Progress is the `fw_state` telemetry.
-  - Incoming message method name: `TBD` (parameter format: `TBD`)
-  - **TEMPORARY** test RPCs (`BuddyBotFirmware/src/remote_test.cpp`), two-way (`nextMode`, `clearMessages`, `reboot` take no params). They'll be removed when BLE mode control and Phase 4 messaging replace them:
+  - Kept on purpose (decided 2026-09-30): these RPCs (`BuddyBotFirmware/src/remote_test.cpp`, still named "test" in the code) are the way messages reach the robot, so there is no separate messaging method. Two-way (`nextMode`, `clearMessages`, `reboot` take no params):
     - `nextMode`: switches to the next display mode.
     - `clearMessages`: deletes the stored message history (RAM + NVS `msgs/*`).
     - `addMessage`: params `{"text": "..."}` (or a plain JSON string); stores it as the newest message (max 100 chars). CR / LF characters are removed; a message that is empty after that is ignored.
@@ -147,7 +146,7 @@ Display modes (firmware `modes::Mode`, same numbers as BLE Mode Select): `0` = `
   - Package **Version** = `FIRMWARE_VERSION` of the build, `MAJOR.MINOR.PATCH`
   - Package type Firmware, device profile `BuddyBot`, binary = `BuddyBotFirmware/.pio/build/esp32dev/firmware.bin`, checksum MD5 or SHA-256 (auto-generated is fine)
   - Install rule: installs the assigned version if it differs from the running one (downgrades allowed), unless it is the NVS `ota/bad` version
-- Serial commands (115200 baud): `ota`, `ota force`, `status`, plus TEMPORARY `msg clear` (same as the RPC above). The serial `mode` command was removed in 0.5.0: the app switches modes over BLE. The TEMPORARY RPC `nextMode` stays for remote testing
+- Serial commands (115200 baud): `ota`, `ota force`, `status`, plus `msg clear` (same as the RPC above). The serial `mode` command was removed in 0.5.0: the app switches modes over BLE. The RPC `nextMode` stays
 
 ---
 
