@@ -6,10 +6,25 @@
 
 #include "led_matrix.h"
 
-using led_matrix::leds;
 using led_matrix::ledCoords;
+using led_matrix::leds;
 
 namespace {
+
+// ==========================================
+// EYE TILT
+// ==========================================
+// The whole eye is drawn in a frame rotated by this angle relative to
+// ledCoords. Flip the sign if it tilts the wrong way.
+constexpr float EYE_TILT_DEG = -45.0f;
+const float TILT_COS = cosf(EYE_TILT_DEG * (float)M_PI / 180.0f);
+const float TILT_SIN = sinf(EYE_TILT_DEG * (float)M_PI / 180.0f);
+
+// LED i's position in the tilted eye frame.
+void eyeFramePos(int i, float &x, float &y) {
+  x = ledCoords[i].x * TILT_COS - ledCoords[i].y * TILT_SIN;
+  y = ledCoords[i].x * TILT_SIN + ledCoords[i].y * TILT_COS;
+}
 
 // ==========================================
 // COLOR PALETTES & ANIMATION STATES
@@ -22,34 +37,34 @@ struct EyePalette {
 
 // Indexed by eye::Theme.
 const EyePalette THEMES[eye::THEME_COUNT] = {
-  { CRGB(0, 255, 255), CRGB(0, 30, 120), CRGB(180, 255, 255) }, // Cyan
-  { CRGB(255, 140, 0), CRGB(120, 20, 0),  CRGB(255, 200, 100) }, // Amber
-  { CRGB(0, 255, 100), CRGB(0, 80, 20),   CRGB(150, 255, 180) }, // Emerald
-  { CRGB(255, 0, 150), CRGB(80, 0, 80),   CRGB(255, 160, 220) }  // Magenta
+    {CRGB(0, 255, 255), CRGB(0, 30, 120), CRGB(180, 255, 255)},  // Cyan
+    {CRGB(255, 140, 0), CRGB(120, 20, 0), CRGB(255, 200, 100)},  // Amber
+    {CRGB(0, 255, 100), CRGB(0, 80, 20), CRGB(150, 255, 180)},   // Emerald
+    {CRGB(255, 0, 150), CRGB(80, 0, 80), CRGB(255, 160, 220)}    // Magenta
 };
 uint8_t currentTheme = eye::THEME_AMBER;
 
 float currentPupilX = 0.0f, currentPupilY = 0.0f;
-float targetPupilX  = 0.0f, targetPupilY  = 0.0f;
+float targetPupilX = 0.0f, targetPupilY = 0.0f;
 
 unsigned long lastGazeChange = 0;
-unsigned long gazeInterval   = 2000;
+unsigned long gazeInterval = 2000;
 
 enum BlinkState { IDLE, CLOSING, CLOSED, OPENING };
 BlinkState blinkState = IDLE;
-float blinkProgress   = 0.0f;
+float blinkProgress = 0.0f;
 unsigned long lastBlinkCheck = 0;
-unsigned long nextBlinkTime  = 3000;
+unsigned long nextBlinkTime = 3000;
 
 void updateGazeTarget() {
   if (millis() - lastGazeChange > gazeInterval) {
     float angle = (random(0, 360) * M_PI) / 180.0f;
-    float dist  = (random(0, 100) / 100.0f) * 0.40f;
+    float dist = (random(0, 100) / 100.0f) * 0.40f;
 
     targetPupilX = cosf(angle) * dist;
     targetPupilY = sinf(angle) * dist;
 
-    gazeInterval   = random(1200, 3500);
+    gazeInterval = random(1200, 3500);
     lastGazeChange = millis();
   }
 
@@ -63,7 +78,7 @@ void updateBlinkAnimation() {
   switch (blinkState) {
     case IDLE:
       if (now - lastBlinkCheck > nextBlinkTime) {
-        blinkState    = CLOSING;
+        blinkState = CLOSING;
         lastBlinkCheck = now;
       }
       break;
@@ -72,7 +87,7 @@ void updateBlinkAnimation() {
       blinkProgress += 0.12f;
       if (blinkProgress >= 1.0f) {
         blinkProgress = 1.0f;
-        blinkState    = CLOSED;
+        blinkState = CLOSED;
         lastBlinkCheck = now;
       }
       break;
@@ -86,20 +101,20 @@ void updateBlinkAnimation() {
     case OPENING:
       blinkProgress -= 0.10f;
       if (blinkProgress <= 0.0f) {
-        blinkProgress  = 0.0f;
-        blinkState     = IDLE;
+        blinkProgress = 0.0f;
+        blinkState = IDLE;
         lastBlinkCheck = now;
-        nextBlinkTime  = random(2000, 6000);
+        nextBlinkTime = random(2000, 6000);
       }
       break;
   }
 }
 
 void renderEyeFrame() {
-  const EyePalette& theme = THEMES[currentTheme];
+  const EyePalette &theme = THEMES[currentTheme];
 
   const float pupilRadius = 0.28f;
-  const float irisRadius  = 1.05f;
+  const float irisRadius = 1.05f;
 
   const float glint1X = currentPupilX + 0.10f;
   const float glint1Y = currentPupilY + 0.10f;
@@ -108,13 +123,16 @@ void renderEyeFrame() {
 
   float eyelidCutoffY = (1.0f - blinkProgress) * 0.95f;
 
-  // The primary glint is always the LED nearest its ideal spot. A radius test
-  // (the old way) often contained no LED at all and the glint vanished.
+  // The primary glint is always the LED nearest its ideal spot. A radius
+  // test (the old way) often contained no LED at all and the glint vanished.
   int glintLed = 0;
   float glintBest = 1e9f;
   for (int i = 0; i < NUM_LEDS; i++) {
-    float dx = ledCoords[i].x - glint1X;
-    float dy = ledCoords[i].y - glint1Y;
+    float lx = 0.0f;
+    float ly = 0.0f;
+    eyeFramePos(i, lx, ly);
+    float dx = lx - glint1X;
+    float dy = ly - glint1Y;
     float d = dx * dx + dy * dy;
     if (d < glintBest) {
       glintBest = d;
@@ -123,8 +141,9 @@ void renderEyeFrame() {
   }
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    float x = ledCoords[i].x;
-    float y = ledCoords[i].y;
+    float x = 0.0f;
+    float y = 0.0f;
+    eyeFramePos(i, x, y);
 
     // Eyelid horizontal cutoff
     float absY = fabsf(y);
@@ -155,7 +174,8 @@ void renderEyeFrame() {
     }
 
     // Secondary Specular Glint
-    float dGlint2 = sqrtf((x - glint2X) * (x - glint2X) + (y - glint2Y) * (y - glint2Y));
+    float dGlint2 =
+        sqrtf((x - glint2X) * (x - glint2X) + (y - glint2Y) * (y - glint2Y));
     if (dGlint2 < 0.05f) {
       leds[i] = CRGB(180, 180, 180);
       continue;
@@ -178,8 +198,7 @@ void renderEyeFrame() {
       }
 
       leds[i] = color;
-    }
-    else {
+    } else {
       leds[i] = CRGB::Black;
     }
   }
@@ -192,14 +211,20 @@ namespace eye {
 void begin() {
   Preferences prefs;
   prefs.begin("display", false);
-  uint8_t stored = prefs.isKey("eye_theme") ? prefs.getUChar("eye_theme", THEME_AMBER) : THEME_AMBER;
+  uint8_t stored =
+      prefs.isKey("eye_theme") ? prefs.getUChar("eye_theme", THEME_AMBER)
+                               : THEME_AMBER;
   prefs.end();
-  if (stored < THEME_COUNT) currentTheme = stored;
+  if (stored < THEME_COUNT) {
+    currentTheme = stored;
+  }
   Serial.printf("[Eye] Theme %u\r\n", (unsigned)currentTheme);
 }
 
 void setTheme(uint8_t theme) {
-  if (theme >= THEME_COUNT || theme == currentTheme) return;
+  if (theme >= THEME_COUNT || theme == currentTheme) {
+    return;
+  }
   currentTheme = theme;
   Preferences prefs;
   prefs.begin("display", false);
@@ -208,9 +233,7 @@ void setTheme(uint8_t theme) {
   Serial.printf("[Eye] Theme %u\r\n", (unsigned)theme);
 }
 
-uint8_t theme() {
-  return currentTheme;
-}
+uint8_t theme() { return currentTheme; }
 
 void render() {
   updateGazeTarget();
