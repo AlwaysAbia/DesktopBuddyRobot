@@ -2,7 +2,7 @@
 
 A desktop robot with a circular addressable-LED "eye" driven by an ESP32.
 
-The 76-LED display has three modes: the eye animation (default), an analog clock (time from NTP) and a scrolling history of the last 3 messages. The text is tilted 45 degrees so it lines up with the LED grid; rotate the robot about 45 degrees clockwise to read it. The companion app switches modes, eye color and WiFi over Bluetooth LE (GATT layout in [`interface-contract.md`](interface-contract.md)); the eye and Bluetooth work without WiFi. The temporary ThingsBoard RPCs in the same file remain for remote testing.
+The 76-LED display has three modes: the eye animation (default), an a scrolling digital clock (time from NTP) (time from NTP) and a scrolling history of the last 3 messages. The text is tilted 45 degrees so it lines up with the LED grid; rotate the robot about 45 degrees clockwise to read it. The companion app switches modes, eye color and WiFi over Bluetooth LE (GATT layout in [`interface-contract.md`](interface-contract.md)); the eye and Bluetooth work without WiFi. The temporary ThingsBoard RPCs in the same file remain for remote testing.
 
 ## Repository layout
 
