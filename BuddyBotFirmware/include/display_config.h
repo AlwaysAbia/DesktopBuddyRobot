@@ -23,4 +23,4 @@
 // columns run along the LED grid, which is diagonal on screen. Strokes come out one
 // LED wide and crisp; rotate the robot this many degrees clockwise to read it upright.
 // 0 = upright text (blurry on this grid).
-#define TEXT_ROTATION_DEG 45
+#define TEXT_ROTATION_DEG -45
